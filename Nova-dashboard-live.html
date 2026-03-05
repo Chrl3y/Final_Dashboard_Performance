@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nova Loan Performance Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+
+    /* ══════════════════════════════════════════════════
+       THEME SYSTEM — Dark (default) & Light
+       ══════════════════════════════════════════════════ */
+    :root,[data-theme="dark"]{
+      --bg-primary:#0b0f14;
+      --bg-secondary:#111820;
+      --bg-card:rgba(16,24,32,0.55);
+      --bg-card-hover:rgba(20,30,42,0.72);
+      --bg-card-solid:#10181f;
+      --glass-border:rgba(255,255,255,0.07);
+      --glass-border-hover:rgba(16,185,129,0.28);
+      --glass-blur:18px;
+      --glass-shadow:0 8px 32px rgba(0,0,0,0.32);
+      --glass-shine:linear-gradient(135deg,rgba(255,255,255,.04) 0%,transparent 50%);
+      --accent:#10b981;--accent-light:#34d399;--accent-dark:#059669;--accent-glow:rgba(16,185,129,0.12);
+      --accent-blue:#3b82f6;--accent-orange:#f59e0b;--accent-red:#ef4444;
+      --accent-purple:#8b5cf6;--accent-cyan:#06b6d4;
+      --text-primary:#f0fdf4;--text-secondary:#94a3b8;--text-tertiary:#64748b;
+      --border-color:rgba(255,255,255,0.05);--border-hover:rgba(255,255,255,0.12);
+      --table-stripe:rgba(255,255,255,0.012);
+      --loading-grad:linear-gradient(90deg,var(--accent),var(--accent-light));
+      --icon-bg:rgba(16,185,129,0.1);--icon-color:var(--accent);
+      --surface-overlay:rgba(255,255,255,0.025);
+      --chart-grid:rgba(255,255,255,0.04);--chart-tick:#64748b;
+      --doughnut-border:#10181f;
+      --dot-pattern:rgba(255,255,255,0.03);
+    }
+    [data-theme="light"]{
+      --bg-primary:#0d5c3a;
+      --bg-secondary:#0a4a2e;
+      --bg-card:rgba(255,255,255,0.93);
+      --bg-card-hover:rgba(255,255,255,1);
+      --bg-card-solid:#ffffff;
+      --glass-border:rgba(16,185,129,0.55);
+      --glass-border-hover:rgba(5,150,105,0.85);
+      --glass-blur:22px;
+      --glass-shadow:0 8px 32px rgba(0,0,0,0.22),0 1px 3px rgba(0,0,0,0.12);
+      --glass-shine:linear-gradient(135deg,rgba(255,255,255,.55) 0%,transparent 50%);
+      --accent:#047857;--accent-light:#059669;--accent-dark:#065f46;--accent-glow:rgba(4,120,87,0.1);
+      --accent-blue:#1d4ed8;--accent-orange:#b45309;--accent-red:#b91c1c;
+      --accent-purple:#6d28d9;--accent-cyan:#0e7490;
+      --text-primary:#022c22;--text-secondary:#1e4038;--text-tertiary:#3d6b5a;
+      --border-color:rgba(16,185,129,0.4);--border-hover:rgba(5,150,105,0.7);
+      --table-stripe:rgba(16,185,129,0.06);
+      --loading-grad:linear-gradient(90deg,var(--accent),var(--accent-light));
+      --icon-bg:rgba(4,120,87,0.12);--icon-color:var(--accent);
+      --surface-overlay:rgba(4,120,87,0.07);
+      --chart-grid:rgba(0,0,0,0.08);--chart-tick:#1e4038;
+      --doughnut-border:#fff;
+      --dot-pattern:rgba(255,255,255,0.06);
+    }
+
+    body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--text-primary);
+      line-height:1.6;transition:background .35s,color .35s;min-height:100vh}
+    body::before{content:'';position:fixed;inset:0;z-index:-1;
+      background-image:radial-gradient(circle at 1px 1px,var(--dot-pattern) 1px,transparent 0);
+      background-size:32px 32px;pointer-events:none}
+
+    .container{max-width:1800px;margin:0 auto;padding:1.25rem 1.5rem}
+
+    /* ══ GLASS BASE ══ */
+    .glass{
+      background:var(--bg-card);
+      backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));
+      border:1.5px solid var(--glass-border);
+      border-radius:16px;
+      box-shadow:var(--glass-shadow);
+      position:relative;
+      overflow:hidden;
+      transition:all .3s ease;
+    }
+    .glass::after{content:'';position:absolute;inset:0;background:var(--glass-shine);pointer-events:none;border-radius:inherit}
+    .glass:hover{border-color:var(--glass-border-hover);background:var(--bg-card-hover);
+      box-shadow:var(--glass-shadow),0 0 0 1px var(--glass-border-hover)}
+
+    /* ══ HEADER ══ */
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.75rem;
+      padding-bottom:1.25rem;border-bottom:1px solid var(--border-color);flex-wrap:wrap;gap:1rem}
+    .header-main{flex:1;min-width:260px}
+    .header-brand{display:flex;align-items:center;gap:.55rem;margin-bottom:.3rem}
+    .header-logo{width:30px;height:30px;border-radius:8px;background:var(--accent);display:flex;align-items:center;
+      justify-content:center;font-weight:900;font-size:.75rem;color:#fff;box-shadow:0 2px 8px rgba(16,185,129,.25)}
+    .header-main h1{font-size:1.5rem;font-weight:800;letter-spacing:-.5px;
+      background:linear-gradient(135deg,var(--accent-light),var(--accent));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .header-main p{color:var(--text-secondary);font-size:.78rem}
+    .header-controls{display:flex;gap:.55rem;flex-wrap:wrap;align-items:center}
+
+    /* Control elements shared style */
+    .ctrl-glass{background:var(--bg-card);backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));
+      border:1px solid var(--glass-border);transition:all .2s}
+    .ctrl-glass:hover{border-color:var(--glass-border-hover);background:var(--bg-card-hover)}
+
+    .period-selector{display:flex;border-radius:10px;overflow:hidden}
+    .period-btn{padding:.4rem .75rem;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;
+      font-size:.72rem;font-weight:600;transition:all .2s;font-family:inherit;white-space:nowrap}
+    .period-btn:hover{background:var(--accent-glow);color:var(--accent-light)}
+    .period-btn.active{background:var(--accent);color:#fff}
+
+    .ctrl-btn{padding:.4rem .8rem;border-radius:10px;color:var(--text-secondary);cursor:pointer;
+      font-size:.78rem;font-family:inherit;display:inline-flex;align-items:center;gap:.35rem;font-weight:600}
+    .status-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .loading-bar{height:3px;background:var(--bg-secondary);position:sticky;top:0;z-index:100;overflow:hidden}
+    .loading-bar-fill{height:100%;width:0;background:var(--loading-grad);transition:width .3s;border-radius:2px}
+
+    /* ══ THEME TOGGLE ══ */
+    .theme-toggle{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+      cursor:pointer;font-size:.95rem;transition:all .2s}
+    .theme-toggle:hover{transform:rotate(20deg)}
+
+    /* ══ BRANCH FILTER ══ */
+    .branch-filter{position:relative;display:flex;align-items:center;gap:.3rem}
+    .branch-filter select{padding:.4rem 1.8rem .4rem .65rem;border-radius:10px;color:var(--text-secondary);
+      font-size:.72rem;font-family:inherit;cursor:pointer;appearance:none;-webkit-appearance:none;font-weight:600;
+      background:var(--bg-card);border:1px solid var(--glass-border);transition:all .2s;max-width:160px}
+    .branch-filter select:hover{border-color:var(--glass-border-hover);color:var(--text-primary)}
+    .branch-filter select.filtered{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+    .branch-filter select option{background:var(--bg-card-solid);color:var(--text-primary)}
+    .branch-filter-arrow{position:absolute;right:2.2rem;top:50%;transform:translateY(-50%);
+      color:var(--text-tertiary);pointer-events:none;font-size:.6rem}
+    .branch-clear-btn{width:22px;height:22px;border-radius:6px;border:1px solid var(--glass-border);
+      background:var(--bg-card);color:var(--text-tertiary);cursor:pointer;font-size:.6rem;
+      display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;font-family:inherit}
+    .branch-clear-btn:hover{border-color:var(--accent-red);color:var(--accent-red);background:rgba(239,68,68,.08)}
+
+    /* ══ KPI CARDS ══ */
+    .metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:1rem;margin-bottom:1.75rem}
+    .metric-card{padding:1.1rem 1.15rem;cursor:grab;position:relative}
+    .metric-card.dragging{opacity:.4;transform:scale(.96);cursor:grabbing}
+    .metric-card.drag-over{border-color:var(--accent)!important;
+      box-shadow:0 0 0 2px var(--accent-glow),0 0 20px rgba(16,185,129,.08),var(--glass-shadow)!important}
+    .metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+      background:var(--loading-grad);transform:scaleX(0);transform-origin:left;transition:transform .3s}
+    .metric-card:hover::before{transform:scaleX(1)}
+    .metric-card:hover{transform:translateY(-3px)}
+    .drag-handle{position:absolute;top:.45rem;right:.45rem;cursor:grab;opacity:0;transition:opacity .2s;
+      color:var(--text-tertiary);font-size:.55rem;padding:.1rem .2rem;letter-spacing:1px}
+    .metric-card:hover .drag-handle{opacity:.5}
+
+    .metric-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.55rem}
+    .metric-title{font-size:.62rem;color:var(--text-secondary);font-weight:700;text-transform:uppercase;letter-spacing:.9px}
+    .metric-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+      font-size:.7rem;font-weight:800;color:var(--icon-color);background:var(--icon-bg);letter-spacing:-.5px;
+      font-family:'Inter',sans-serif}
+    .metric-value{font-size:1.5rem;font-weight:800;margin-bottom:.2rem;font-variant-numeric:tabular-nums;letter-spacing:-.5px;color:var(--text-primary)}
+    .metric-sub{font-size:.7rem;color:var(--text-tertiary);margin-bottom:.4rem}
+    .metric-footer{display:flex;justify-content:space-between;align-items:center}
+    .metric-change{display:flex;align-items:center;gap:.2rem;font-size:.68rem;font-weight:700;padding:.12rem .35rem;border-radius:6px}
+    .metric-change.up{color:var(--accent);background:var(--accent-glow)}
+    .metric-change.down{color:var(--accent-red);background:rgba(239,68,68,.08)}
+    .metric-change.neutral{color:var(--text-secondary);background:var(--surface-overlay)}
+    .metric-label{font-size:.62rem;color:var(--text-tertiary)}
+    .metric-sparkline{height:28px;margin-top:.35rem;opacity:.55}
+    .metric-sparkline canvas{width:100%!important;height:100%!important}
+
+    .par-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .55rem;border-radius:8px;font-size:.68rem;font-weight:700}
+    .par-excellent{background:rgba(16,185,129,.1);color:var(--accent);border:1px solid rgba(16,185,129,.18)}
+    .par-good{background:rgba(59,130,246,.1);color:var(--accent-blue);border:1px solid rgba(59,130,246,.18)}
+    .par-warning{background:rgba(245,158,11,.1);color:var(--accent-orange);border:1px solid rgba(245,158,11,.18)}
+    .par-danger{background:rgba(239,68,68,.1);color:var(--accent-red);border:1px solid rgba(239,68,68,.18)}
+
+    /* ══ CHARTS ══ */
+    .charts-row{display:grid;gap:1rem;margin-bottom:1rem}
+    .charts-row.two-col{grid-template-columns:2fr 1fr}
+    .charts-row.three-col{grid-template-columns:1fr 1fr 1fr}
+    .chart-card{padding:1.25rem}
+    .chart-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem}
+    .chart-title{font-size:.92rem;font-weight:700}
+    .chart-subtitle{font-size:.72rem;color:var(--text-secondary);margin-top:.12rem}
+    .chart-container{position:relative}
+    .chart-container.h300{height:300px}
+    .chart-container.h250{height:250px}
+    .chart-container.h200{height:200px}
+    .chart-legend{display:flex;gap:.8rem;flex-wrap:wrap;margin-top:.6rem}
+    .legend-item{display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--text-secondary)}
+    .legend-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+
+    /* ══ TABLES ══ */
+    .table-card{padding:1.25rem;margin-bottom:1rem}
+    .table-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem}
+    .table-title{font-size:.92rem;font-weight:700}
+    .table-subtitle{font-size:.72rem;color:var(--text-secondary);margin-top:.12rem}
+    .table-container{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:.8rem}
+    thead{background:var(--surface-overlay)}
+    th{text-align:left;padding:.6rem .8rem;font-weight:700;color:var(--text-secondary);
+      border-bottom:1px solid var(--border-color);white-space:nowrap;font-size:.65rem;
+      text-transform:uppercase;letter-spacing:.6px}
+    td{padding:.7rem .8rem;border-bottom:1px solid var(--border-color);vertical-align:middle}
+    tbody tr{transition:background .15s}
+    tbody tr:nth-child(even){background:var(--table-stripe)}
+    tbody tr:hover{background:var(--accent-glow)}
+    tbody tr:last-child td{border-bottom:none}
+
+    .rank-badge{display:inline-flex;align-items:center;justify-content:center;width:25px;height:25px;
+      border-radius:8px;font-weight:800;font-size:.72rem}
+    .rank-1{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#78350f}
+    .rank-2{background:linear-gradient(135deg,#d1d5db,#9ca3af);color:#1f2937}
+    .rank-3{background:linear-gradient(135deg,#fed7aa,#fdba74);color:#7c2d12}
+    .rank-n{background:var(--surface-overlay);color:var(--text-secondary)}
+    .progress-bar{width:100%;height:4px;background:var(--surface-overlay);border-radius:2px;overflow:hidden;min-width:70px}
+    .progress-fill{height:100%;border-radius:2px;transition:width .5s ease}
+    .score-chip{display:inline-block;padding:.15rem .5rem;border-radius:8px;font-size:.62rem;
+      font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+    .score-excellent{background:rgba(16,185,129,.1);color:var(--accent)}
+    .score-good{background:rgba(59,130,246,.1);color:var(--accent-blue)}
+    .score-warning{background:rgba(245,158,11,.1);color:var(--accent-orange)}
+    .score-danger{background:rgba(239,68,68,.1);color:var(--accent-red)}
+    .officer-name{font-weight:600}
+    .officer-branch{font-size:.7rem;color:var(--text-tertiary)}
+
+    /* Sort tabs */
+    .sort-tabs{display:flex;gap:.25rem;flex-wrap:wrap}
+    .sort-tab{padding:.25rem .55rem;border-radius:7px;font-size:.65rem;font-weight:600;cursor:pointer;
+      background:var(--surface-overlay);color:var(--text-secondary);border:1px solid transparent;
+      transition:all .2s;font-family:inherit}
+    .sort-tab:hover{color:var(--text-primary);background:var(--accent-glow)}
+    .sort-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .table-actions{display:flex;gap:.4rem;align-items:center}
+
+    .export-btn{padding:.25rem .55rem;border-radius:8px;color:var(--text-secondary);cursor:pointer;
+      font-size:.65rem;font-family:inherit;display:inline-flex;align-items:center;gap:.25rem;font-weight:600;
+      background:var(--surface-overlay);border:1px solid var(--glass-border);transition:all .2s}
+    .export-btn:hover{border-color:var(--glass-border-hover);color:var(--text-primary);background:var(--accent-glow)}
+
+    /* ══ GAUGE ══ */
+    .gauge-wrapper{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center}
+    .gauge-center{position:absolute;top:55%;left:50%;transform:translate(-50%,-50%);text-align:center}
+    .gauge-pct{font-size:2.1rem;font-weight:900;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+    .gauge-label{font-size:.72rem;color:var(--text-secondary)}
+    .gauge-stats{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;width:100%;margin-top:.8rem}
+    .gauge-stat{text-align:center;padding:.6rem;background:var(--surface-overlay);border-radius:10px;border:1px solid var(--border-color)}
+    .gauge-stat-value{font-size:.95rem;font-weight:700;margin-bottom:.1rem}
+    .gauge-stat-label{font-size:.62rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+    .gauge-status{margin-top:.6rem;padding:.22rem .6rem;border-radius:8px;font-size:.72rem;font-weight:700;display:inline-flex;align-items:center;gap:.25rem}
+    .gauge-excellent{background:rgba(16,185,129,.1);color:var(--accent);border:1px solid rgba(16,185,129,.18)}
+    .gauge-ontrack{background:rgba(59,130,246,.1);color:var(--accent-blue);border:1px solid rgba(59,130,246,.18)}
+    .gauge-moderate{background:rgba(245,158,11,.1);color:var(--accent-orange);border:1px solid rgba(245,158,11,.18)}
+    .gauge-low{background:rgba(239,68,68,.1);color:var(--accent-red);border:1px solid rgba(239,68,68,.18)}
+
+    /* ══ ARREARS ══ */
+    .arrears-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-top:.45rem}
+    .arrears-band{padding:.8rem;background:var(--surface-overlay);border-radius:10px;border:1px solid var(--border-color)}
+    .arrears-label{font-size:.65rem;color:var(--text-secondary);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.25rem}
+    .arrears-count{font-size:1.25rem;font-weight:800;margin-bottom:.1rem}
+    .arrears-amount{font-size:.72rem;color:var(--text-tertiary)}
+
+    /* ══ DOW ══ */
+    .dow-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.35rem;margin-top:.55rem}
+    .dow-cell{text-align:center;padding:.45rem .15rem;border-radius:8px;border:1px solid var(--border-color)}
+    .dow-day{font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-secondary);margin-bottom:.15rem}
+    .dow-value{font-size:.75rem;font-weight:800;margin-bottom:.08rem}
+    .dow-sub{font-size:.55rem;color:var(--text-tertiary)}
+
+    /* ══ TOAST ══ */
+    .toast-container{position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.35rem;pointer-events:none}
+    .toast{padding:.6rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;font-family:inherit;
+      pointer-events:auto;display:flex;align-items:center;gap:.4rem;max-width:340px;
+      backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);animation:toastIn .3s ease}
+    .toast-success{background:rgba(16,185,129,.1);color:var(--accent);border:1px solid rgba(16,185,129,.2);box-shadow:0 8px 24px rgba(16,185,129,.08)}
+    .toast-error{background:rgba(239,68,68,.1);color:var(--accent-red);border:1px solid rgba(239,68,68,.2);box-shadow:0 8px 24px rgba(239,68,68,.08)}
+    .toast-info{background:rgba(59,130,246,.1);color:var(--accent-blue);border:1px solid rgba(59,130,246,.2);box-shadow:0 8px 24px rgba(59,130,246,.08)}
+    .toast-exit{animation:toastOut .3s ease forwards}
+    @keyframes toastIn{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes toastOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(60px)}}
+
+    /* ══ SECTION ERROR ══ */
+    .section-error{padding:1.5rem;text-align:center;border-radius:10px;background:rgba(239,68,68,.03);border:1px solid rgba(239,68,68,.1)}
+    .section-error-text{color:var(--accent-red);font-size:.75rem;font-weight:600}
+    .section-error-detail{color:var(--text-tertiary);font-size:.68rem;margin-top:.2rem}
+    .empty-state{padding:1.5rem;text-align:center;color:var(--text-tertiary);font-size:.8rem}
+
+    /* ══ SIGNATURE ══ */
+    .vvv-signature{
+      text-align:right;font-size:.58rem;font-weight:600;letter-spacing:.35rem;
+      text-transform:lowercase;margin-bottom:1.2rem;margin-top:-.8rem;
+      background:linear-gradient(90deg,#b8922a,#f0c040,#c9972e);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+      opacity:.55;
+      filter:drop-shadow(0 0 6px rgba(212,175,55,.25));
+      transition:opacity .3s;user-select:none;pointer-events:none;
+    }
+    .vvv-signature:hover{opacity:.9}
+
+    /* ══ PRINT ══ */
+    @media print{
+      body{background:#fff!important;color:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      body::before{display:none}
+      .header-controls,.ctrl-btn,.export-btn,.table-actions,.branch-filter,.toast-container,.loading-bar,.theme-toggle,.drag-handle,.sort-tabs{display:none!important}
+      .glass,.metric-card,.chart-card,.table-card{break-inside:avoid;border:1px solid #ddd!important;
+        background:#fff!important;backdrop-filter:none!important;box-shadow:none!important}
+      .glass::after{display:none}
+      .metric-value,.chart-title,.table-title{color:#000!important;-webkit-text-fill-color:#000!important}
+      .container{max-width:100%;padding:.4rem}
+      .charts-row.two-col,.charts-row.three-col{grid-template-columns:1fr!important}
+      .metrics-grid{grid-template-columns:repeat(3,1fr)!important}
+      canvas{max-height:200px!important}
+      .print-header{display:block!important}
+    }
+    .print-header{display:none}
+
+    /* ══ RESPONSIVE ══ */
+    @media(max-width:1200px){.charts-row.two-col,.charts-row.three-col{grid-template-columns:1fr}}
+    @media(max-width:768px){.metrics-grid{grid-template-columns:1fr 1fr}.header{flex-direction:column}.dow-grid{grid-template-columns:repeat(4,1fr)}}
+    @media(max-width:480px){.metrics-grid{grid-template-columns:1fr}.dow-grid{grid-template-columns:repeat(3,1fr)}}
+
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:var(--glass-border);border-radius:3px}
+    ::-webkit-scrollbar-thumb:hover{background:var(--glass-border-hover)}
+  </style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+<div class="loading-bar"><div class="loading-bar-fill" id="loadingBar"></div></div>
+<div class="container">
+
+  <div class="print-header" style="text-align:center;margin-bottom:1rem">
+    <h2 style="color:#000">Nova Loan Performance Report</h2>
+    <p style="color:#666;font-size:.85rem" id="printDate"></p>
+  </div>
+
+  <!-- ══ HEADER ══ -->
+  <header class="header">
+    <div class="header-main">
+      <div class="header-brand">
+        <div class="header-logo">N</div>
+        <h1>Nova Performance</h1>
+      </div>
+      <p>Real-time metrics via Metabase &mdash; Nova MySQL</p>
+      <p id="lastUpdate" style="color:var(--text-tertiary);font-size:.72rem;margin-top:.15rem">Loading…</p>
+    </div>
+    <div class="header-controls">
+      <div class="branch-filter">
+        <select id="branchFilter" title="Filter by branch"><option value="all">Branch</option></select>
+        <span class="branch-filter-arrow">▾</span>
+        <button class="branch-clear-btn" id="branchClearBtn" title="Clear branch filter" style="display:none">✕</button>
+      </div>
+      <div class="period-selector ctrl-glass" style="border-radius:10px">
+        <button class="period-btn" data-period="today">Today</button>
+        <button class="period-btn active" data-period="week">Week</button>
+        <button class="period-btn" data-period="month">Month</button>
+        <button class="period-btn" data-period="quarter">Qtr</button>
+        <button class="period-btn" data-period="year">Year</button>
+        <button class="period-btn" data-period="uptodate">All</button>
+      </div>
+      <button class="ctrl-btn ctrl-glass" onclick="loadAll()"><div class="status-dot" id="statusDot"></div> Refresh</button>
+      <button class="ctrl-btn ctrl-glass" onclick="window.print()">Print</button>
+      <div class="theme-toggle ctrl-glass" id="themeToggle" title="Toggle light / dark mode"></div>
+    </div>
+  </header>
+
+  <!-- ══ SIGNATURE ══ -->
+  <div class="vvv-signature" id="vvvSignature">veni vidi vici</div>
+
+  <!-- ══ KPI CARDS ══ -->
+  <div class="metrics-grid" id="kpiGrid">
+    <!-- ── Total Portfolio: all-time book value — no period filter, branch-filterable -->
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <div class="metric-header">
+        <div class="metric-title">Total Portfolio</div>
+        <div class="metric-icon" style="color:var(--accent-purple);background:rgba(139,92,246,.08)">TP</div>
+      </div>
+      <div class="metric-value" id="kpiTotalPortfolio">—</div>
+      <div class="metric-sub" id="kpiTotalPortfolioCount">All-time book value</div>
+      <div class="metric-footer"><div class="metric-change neutral" style="font-size:.6rem">All-time · no period filter</div></div>
+    </div>
+    <!-- ── Portfolio Outstanding: live balance sheet — matches HelaPlus Balance Outstanding -->
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <div class="metric-header">
+        <div class="metric-title">Portfolio Outstanding</div>
+        <div class="metric-icon" style="color:var(--accent-cyan);background:rgba(6,182,212,.08)">PO</div>
+      </div>
+      <div class="metric-value" id="kpiPortfolioOutstanding">—</div>
+      <div class="metric-sub" id="kpiPortfolioOutstandingCount">Live balance sheet</div>
+      <div class="metric-footer"><div class="metric-change neutral" style="font-size:.6rem">HelaPlus Balance Outstanding</div></div>
+    </div>
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <div class="metric-header">
+        <div class="metric-title">Total Disbursements</div>
+        <div class="metric-icon">D</div>
+      </div>
+      <div class="metric-value" id="kpiDisbTotal">—</div>
+      <div class="metric-sub" id="kpiDisbCount"></div>
+      <div class="metric-footer"><div class="metric-change neutral" id="kpiDisbChange">—</div><div class="metric-label">vs prior</div></div>
+      <div class="metric-sparkline"><canvas id="sparkDisb"></canvas></div>
+    </div>
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <div class="metric-header">
+        <div class="metric-title">Collections</div>
+        <div class="metric-icon">C</div>
+      </div>
+      <div class="metric-value" id="kpiColTotal">—</div>
+      <div class="metric-sub" id="kpiColCount"></div>
+      <div class="metric-footer"><div class="metric-change neutral" id="kpiColChange">—</div><div class="metric-label">vs prior</div></div>
+      <div class="metric-sparkline"><canvas id="sparkCol"></canvas></div>
+    </div>
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <div class="metric-header">
+        <div class="metric-title">Collection Rate</div>
+        <div class="metric-icon" style="color:var(--accent-purple);background:rgba(139,92,246,.08)">%</div>
+      </div>
+      <div class="metric-value" id="kpiColRate">—</div>
+      <div class="metric-sub">Collections / Disbursements</div>
+      <div class="metric-footer"><div class="metric-change neutral" id="kpiColRateChip">—</div><div class="metric-label">ratio</div></div>
+    </div>
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <div class="metric-header">
+        <div class="metric-title">Active Loans</div>
+        <div class="metric-icon" style="color:var(--accent-cyan);background:rgba(6,182,212,.08)">#</div>
+      </div>
+      <div class="metric-value" id="kpiActiveLoans">—</div>
+      <div class="metric-sub" id="kpiActiveClients"></div>
+      <div class="metric-footer"><div class="metric-label" id="kpiOutstanding"></div></div>
+      <div class="metric-sparkline"><canvas id="sparkLoans"></canvas></div>
+    </div>
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <div class="metric-header">
+        <div class="metric-title">PAR &gt; 30 Days</div>
+        <div class="metric-icon" style="color:var(--accent-red);background:rgba(239,68,68,.08)">!</div>
+      </div>
+      <div class="metric-value" id="kpiPAR">—</div>
+      <div class="metric-sub" id="kpiPARAmount"></div>
+      <div class="metric-footer"><div id="kpiPARBadge"></div><div class="metric-label">at risk</div></div>
+    </div>
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <div class="metric-header">
+        <div class="metric-title">Avg Loan Size</div>
+        <div class="metric-icon" style="color:var(--accent-orange);background:rgba(245,158,11,.08)">Ø</div>
+      </div>
+      <div class="metric-value" id="kpiAvgLoan">—</div>
+      <div class="metric-sub">Average disbursed amount</div>
+      <div class="metric-footer"><div class="metric-label">selected period</div></div>
+    </div>
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <div class="metric-header">
+        <div class="metric-title">Customer Retention</div>
+        <div class="metric-icon" style="color:var(--accent-purple);background:rgba(139,92,246,.08)">R</div>
+      </div>
+      <div class="metric-value" id="kpiRetention">—</div>
+      <div class="metric-sub" id="kpiRetentionSub"></div>
+      <div class="metric-footer"><div id="kpiRetentionBadge"></div><div class="metric-label">repeat clients</div></div>
+    </div>
+  </div>
+
+  <!-- ══ TREND + GAUGE ══ -->
+  <div class="charts-row two-col">
+    <div class="chart-card glass" id="trendSection">
+      <div class="chart-header"><div><div class="chart-title">Disbursements & Collections Trend</div>
+        <div class="chart-subtitle">Daily amounts for the selected period</div></div></div>
+      <div class="chart-container h300"><canvas id="trendChart"></canvas></div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent-blue)"></div>Disbursements</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Collections</div>
+      </div>
+    </div>
+    <div class="chart-card glass" id="gaugeSection">
+      <div class="chart-header"><div><div class="chart-title">Collections vs Target</div>
+        <div class="chart-subtitle">Actual vs scheduled amounts due</div></div></div>
+      <div class="gauge-wrapper">
+        <div class="chart-container" style="height:185px;width:100%;max-width:270px;margin:0 auto"><canvas id="gaugeChart"></canvas></div>
+        <div class="gauge-center"><div class="gauge-pct" id="gaugePct">—</div><div class="gauge-label">Achievement</div></div>
+      </div>
+      <div style="text-align:center" id="gaugeStatusBadge"></div>
+      <div class="gauge-stats">
+        <div class="gauge-stat"><div class="gauge-stat-value" id="gaugeCollected">—</div><div class="gauge-stat-label">Collected</div></div>
+        <div class="gauge-stat"><div class="gauge-stat-value" id="gaugeTarget">—</div><div class="gauge-stat-label">Target</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PRODUCT + DOW + PAR TREND ══ -->
+  <div class="charts-row three-col">
+    <div class="chart-card glass" id="productSection">
+      <div class="chart-header"><div><div class="chart-title">Product Mix</div>
+        <div class="chart-subtitle">Disbursements by loan product</div></div></div>
+      <div class="chart-container h250"><canvas id="productChart"></canvas></div>
+      <div id="productLegend" class="chart-legend" style="margin-top:.55rem;flex-direction:column;gap:.3rem"></div>
+    </div>
+    <div class="chart-card glass" id="dowSection">
+      <div class="chart-header"><div><div class="chart-title">Collections by Day</div>
+        <div class="chart-subtitle">Avg daily collections (90 days)</div></div></div>
+      <div class="chart-container h250"><canvas id="dowChart"></canvas></div>
+      <div class="dow-grid" id="dowGrid"></div>
+    </div>
+    <div class="chart-card glass" id="parTrendSection">
+      <div class="chart-header"><div><div class="chart-title">PAR 30 Trend</div>
+        <div class="chart-subtitle">Portfolio at risk (6 months)</div></div></div>
+      <div class="chart-container h250"><canvas id="parTrendChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ══ BRANCH + ARREARS ══ -->
+  <div class="charts-row two-col">
+    <div class="chart-card glass" id="branchChartSection">
+      <div class="chart-header"><div><div class="chart-title">Branch Performance</div>
+        <div class="chart-subtitle">Disbursements & collections by branch</div></div></div>
+      <div class="chart-container h300"><canvas id="branchChart"></canvas></div>
+    </div>
+    <div class="chart-card glass" id="arrearsSection">
+      <div class="chart-header"><div><div class="chart-title">Arrears Aging</div>
+        <div class="chart-subtitle">Active portfolio by days overdue</div></div></div>
+      <div class="chart-container h200"><canvas id="arrearsChart"></canvas></div>
+      <div class="arrears-grid" id="arrearsBands"></div>
+    </div>
+  </div>
+
+  <!-- ══ OFFICER LEADERBOARD ══ -->
+  <div class="table-card glass" id="officerSection">
+    <div class="table-header">
+      <div><div class="table-title">Loan Officer Leaderboard</div>
+        <div class="table-subtitle" id="officerSubtitle">Top performers</div></div>
+      <div class="table-actions">
+        <div class="sort-tabs" id="officerSortTabs">
+          <button class="sort-tab active" data-sort="disbursedAmount" data-table="officer">Disbursement</button>
+          <button class="sort-tab" data-sort="collectedAmount" data-table="officer">Collections</button>
+          <button class="sort-tab" data-sort="par30Rate" data-table="officer">PAR 30</button>
+          <button class="sort-tab" data-sort="activeLoans" data-table="officer">Active</button>
+          <button class="sort-tab" data-sort="loansDisbursed" data-table="officer">Loan Count</button>
+        </div>
+        <button class="export-btn" onclick="exportTable('officerTableBody','loan-officers')">CSV</button>
+      </div>
+    </div>
+    <div class="table-container">
+      <table><thead><tr><th>#</th><th>Officer</th><th>Branch</th><th>Loans</th><th>Disbursed</th><th>Active</th><th>Collections</th><th>PAR 30</th><th>Score</th></tr></thead>
+      <tbody id="officerTableBody"><tr><td colspan="9" class="empty-state">Loading…</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- ══ BRANCH TABLE ══ -->
+  <div class="table-card glass" id="branchTableSection">
+    <div class="table-header">
+      <div><div class="table-title">Branch Summary</div>
+        <div class="table-subtitle">Performance by branch</div></div>
+      <div class="table-actions">
+        <div class="sort-tabs" id="branchSortTabs">
+          <button class="sort-tab active" data-sort="disbursedAmount" data-table="branch">Disbursement</button>
+          <button class="sort-tab" data-sort="collectedAmount" data-table="branch">Collections</button>
+          <button class="sort-tab" data-sort="activeLoans" data-table="branch">Active</button>
+          <button class="sort-tab" data-sort="totalOutstanding" data-table="branch">Outstanding</button>
+        </div>
+        <button class="export-btn" onclick="exportTable('branchTableBody','branch-summary')">CSV</button>
+      </div>
+    </div>
+    <div class="table-container">
+      <table><thead><tr><th>#</th><th>Branch</th><th>Loans</th><th>Disbursed</th><th>Collections</th><th>Active</th><th>Outstanding</th><th>Rate</th></tr></thead>
+      <tbody id="branchTableBody"><tr><td colspan="8" class="empty-state">Loading…</td></tr></tbody></table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API_BASE='http://localhost:3000';
+let currentPeriod='week',currentBranch='all',charts={},branchListLoaded=false;
+let officerData=[],branchData=[],officerSortKey='disbursedAmount',branchSortKey='disbursedAmount';
+
+/* ══ THEME ══ */
+function initTheme(){const s=localStorage.getItem('nova-theme')||'dark';document.documentElement.setAttribute('data-theme',s);updIcon(s)}
+function toggleTheme(){const c=document.documentElement.getAttribute('data-theme'),n=c==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',n);localStorage.setItem('nova-theme',n);updIcon(n);showToast(`${n==='light'?'Light':'Dark'} mode`,'info',2000)}
+function updIcon(t){document.getElementById('themeToggle').textContent=t==='dark'?'☀':'☾'}
+document.getElementById('themeToggle').addEventListener('click',toggleTheme);
+initTheme();
+
+/* ══ DRAG & DROP ══ */
+!function(){const grid=document.getElementById('kpiGrid');let src=null;
+  grid.addEventListener('dragstart',e=>{const c=e.target.closest('.metric-card');if(!c)return;src=c;c.classList.add('dragging');e.dataTransfer.effectAllowed='move'});
+  grid.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';const c=e.target.closest('.metric-card');if(c&&c!==src)c.classList.add('drag-over')});
+  grid.addEventListener('dragleave',e=>{const c=e.target.closest('.metric-card');if(c)c.classList.remove('drag-over')});
+  grid.addEventListener('drop',e=>{e.preventDefault();const t=e.target.closest('.metric-card');if(!t||!src||t===src)return;t.classList.remove('drag-over');
+    const all=[...grid.querySelectorAll('.metric-card')],si=all.indexOf(src),ti=all.indexOf(t);
+    si<ti?grid.insertBefore(src,t.nextSibling):grid.insertBefore(src,t);
+    localStorage.setItem('nova-card-order',JSON.stringify([...grid.querySelectorAll('.metric-title')].map(t=>t.textContent)))});
+  grid.addEventListener('dragend',()=>{grid.querySelectorAll('.metric-card').forEach(c=>c.classList.remove('dragging','drag-over'));src=null});
+  const saved=localStorage.getItem('nova-card-order');if(saved)try{const order=JSON.parse(saved),cards=[...grid.querySelectorAll('.metric-card')],
+    map={};cards.forEach(c=>{map[c.querySelector('.metric-title').textContent]=c});order.forEach(title=>{if(map[title])grid.appendChild(map[title])})}catch(e){}
+}();
+
+/* ══ TOAST ══ */
+function showToast(m,type='info',dur=4000){const c=document.getElementById('toastContainer'),
+  t=document.createElement('div');t.className=`toast toast-${type}`;
+  t.innerHTML=`<span>${{success:'✓',error:'✗',info:'ℹ'}[type]||''}</span><span>${m}</span>`;
+  c.appendChild(t);setTimeout(()=>{t.classList.add('toast-exit');setTimeout(()=>t.remove(),300)},dur)}
+
+/* ══ UTILS ══ */
+function fmtUGX(n){if(n==null||isNaN(n))return'—';if(Math.abs(n)>=1e9)return'UGX '+(n/1e9).toFixed(2)+'B';
+  if(Math.abs(n)>=1e6)return'UGX '+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'UGX '+(n/1e3).toFixed(0)+'K';return'UGX '+n.toLocaleString()}
+function fmtNum(n){return(n??0).toLocaleString()}
+function fmtPct(n){return(n??0).toFixed(1)+'%'}
+function changeChip(el,pct){if(pct==null){el.textContent='—';el.className='metric-change neutral';return}
+  el.textContent=(pct>=0?'▲':'▼')+' '+Math.abs(pct)+'%';el.className='metric-change '+(pct>=0?'up':'down')}
+function parBadge(r,s){const c={excellent:'par-excellent',good:'par-good',warning:'par-warning',danger:'par-danger'}[s]||'par-good',
+  l={excellent:'Excellent',good:'Good',warning:'At Risk',danger:'Critical'}[s]||'';return`<span class="par-badge ${c}">● ${l}</span>`}
+function scoreClass(p){return p<=2?'score-excellent':p<=5?'score-good':p<=10?'score-warning':'score-danger'}
+function scoreLabel(p){return p<=2?'Excellent':p<=5?'Good':p<=10?'Moderate':'At Risk'}
+function setLoading(p){document.getElementById('loadingBar').style.width=p+'%'}
+function showSectionError(id,msg){const el=document.getElementById(id);if(!el)return;const c=el.querySelector('canvas');if(c)c.style.display='none';
+  const x=el.querySelector('.section-error');if(x)x.remove();const d=document.createElement('div');d.className='section-error';
+  d.innerHTML=`<div class="section-error-text">Failed to load</div><div class="section-error-detail">${msg}</div>`;
+  (el.querySelector('.chart-container')||el.querySelector('.table-container')||el).appendChild(d)}
+
+/* ══ CSV EXPORT ══ */
+function exportTable(tid,fn){const tb=document.getElementById(tid);if(!tb)return;const tbl=tb.closest('table'),
+  h=[...tbl.querySelectorAll('thead th')].map(t=>t.textContent.trim()),
+  rows=[...tb.querySelectorAll('tr')].map(r=>[...r.querySelectorAll('td')].map(d=>d.textContent.trim().replace(/,/g,''))).filter(r=>r.length>1);
+  const csv=[h.join(','),...rows.map(r=>r.join(','))].join('\n'),blob=new Blob([csv],{type:'text/csv'}),url=URL.createObjectURL(blob),
+  a=document.createElement('a');a.href=url;a.download=`${fn}-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);
+  showToast(`Exported ${rows.length} rows`,'success')}
+
+/* ══ CHART HELPERS ══ */
+const COLORS=['#10b981','#3b82f6','#f59e0b','#8b5cf6','#06b6d4','#ef4444','#ec4899','#14b8a6','#f97316'];
+function destroyChart(k){if(charts[k]){charts[k].destroy();delete charts[k]}}
+function gc(){return getComputedStyle(document.documentElement).getPropertyValue('--chart-grid').trim()}
+function tc(){return getComputedStyle(document.documentElement).getPropertyValue('--chart-tick').trim()}
+function db(){return getComputedStyle(document.documentElement).getPropertyValue('--doughnut-border').trim()}
+
+function buildSparkline(id,data,color){const k='s_'+id;destroyChart(k);const cv=document.getElementById(id);
+  if(!cv||!data||!data.length)return;charts[k]=new Chart(cv.getContext('2d'),{type:'line',data:{labels:data.map((_,i)=>i),
+    datasets:[{data,borderColor:color,backgroundColor:color+'18',borderWidth:1.5,fill:true,tension:.4,pointRadius:0,pointHitRadius:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}},animation:{duration:400}}})}
+
+function buildTrendChart(dd,cd){destroyChart('trend');const ls=new Set([...dd.map(d=>d.label),...cd.map(d=>d.label)]),labels=[...ls].sort(),
+  dm=Object.fromEntries(dd.map(d=>[d.label,d.amount])),cm=Object.fromEntries(cd.map(d=>[d.label,d.amount]));
+  charts.trend=new Chart(document.getElementById('trendChart').getContext('2d'),{type:'bar',data:{labels,datasets:[
+    {label:'Disbursements',data:labels.map(l=>dm[l]||0),backgroundColor:'rgba(59,130,246,.65)',borderRadius:4,order:2},
+    {label:'Collections',data:labels.map(l=>cm[l]||0),backgroundColor:'rgba(16,185,129,.65)',borderRadius:4,order:1}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+fmtUGX(c.raw)}}},
+      scales:{x:{grid:{color:gc()},ticks:{color:tc(),maxTicksLimit:12,font:{size:10}}},y:{grid:{color:gc()},ticks:{color:tc(),font:{size:10},callback:v=>fmtUGX(v)}}}}})}
+
+function buildProductChart(products){destroyChart('product');const top=products.slice(0,8);
+  charts.product=new Chart(document.getElementById('productChart').getContext('2d'),{type:'doughnut',data:{labels:top.map(p=>p.productName),
+    datasets:[{data:top.map(p=>p.totalAmount),backgroundColor:COLORS.slice(0,top.length),borderWidth:2,borderColor:db(),hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.label+': '+fmtUGX(c.raw)}}},cutout:'64%'}});
+  const total=top.reduce((s,p)=>s+p.totalAmount,0);document.getElementById('productLegend').innerHTML=top.map((p,i)=>
+    `<div class="legend-item" style="justify-content:space-between"><div style="display:flex;align-items:center;gap:.3rem">
+      <div class="legend-dot" style="background:${COLORS[i]}"></div><span style="font-size:.7rem">${p.productName.replace('BODA ','').replace('-Weekly','')}</span></div>
+      <span style="color:var(--text-tertiary);font-size:.68rem">${fmtPct(total?(p.totalAmount/total)*100:0)}</span></div>`).join('')}
+
+function buildBranchChart(b){destroyChart('branch');const d=b.slice(0,6);
+  charts.branch=new Chart(document.getElementById('branchChart').getContext('2d'),{type:'bar',data:{labels:d.map(b=>b.branchName),datasets:[
+    {label:'Disbursed',data:d.map(b=>b.disbursedAmount),backgroundColor:'rgba(59,130,246,.65)',borderRadius:5},
+    {label:'Collected',data:d.map(b=>b.collectedAmount),backgroundColor:'rgba(16,185,129,.65)',borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:true,labels:{color:tc(),font:{size:10}}},
+      tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+fmtUGX(c.raw)}}},
+      scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>fmtUGX(v)}},y:{grid:{display:false},ticks:{color:tc(),font:{size:10}}}}}})}
+
+function buildArrearsChart(bands){destroyChart('arrears');const cols=['rgba(245,158,11,.65)','rgba(239,68,68,.5)','rgba(239,68,68,.7)','rgba(239,68,68,.9)'];
+  charts.arrears=new Chart(document.getElementById('arrearsChart').getContext('2d'),{type:'bar',data:{labels:bands.map(b=>b.label),
+    datasets:[{data:bands.map(b=>b.amount),backgroundColor:cols,borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+fmtUGX(c.raw)}}},
+      scales:{x:{grid:{display:false},ticks:{color:tc(),font:{size:9}}},y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>fmtUGX(v)}}}}});
+  document.getElementById('arrearsBands').innerHTML=bands.map((b,i)=>
+    `<div class="arrears-band"><div class="arrears-label">${b.label}</div>
+    <div class="arrears-count" style="color:${['var(--accent-orange)','#f87171','#ef4444','#dc2626'][i]}">${fmtNum(b.count)}</div>
+    <div class="arrears-amount">${fmtUGX(b.amount)} outstanding</div></div>`).join('')}
+
+function buildGaugeChart(data){destroyChart('gauge');const pct=Math.min(data.achievementPct,100),rem=Math.max(100-pct,0),
+  gClr=pct>=90?'#10b981':pct>=80?'#3b82f6':pct>=50?'#f59e0b':'#ef4444',
+  bgc=document.documentElement.getAttribute('data-theme')==='light'?'rgba(0,0,0,0.05)':'rgba(255,255,255,0.05)';
+  charts.gauge=new Chart(document.getElementById('gaugeChart').getContext('2d'),{type:'doughnut',data:{datasets:[{data:[pct,rem],
+    backgroundColor:[gClr,bgc],borderWidth:0,circumference:180,rotation:270}]},options:{responsive:true,maintainAspectRatio:false,cutout:'78%',
+    plugins:{legend:{display:false},tooltip:{enabled:false}}}});
+  document.getElementById('gaugePct').textContent=data.achievementPct.toFixed(1)+'%';document.getElementById('gaugePct').style.color=gClr;
+  document.getElementById('gaugeCollected').textContent=fmtUGX(data.totalCollected);document.getElementById('gaugeTarget').textContent=fmtUGX(data.totalDue);
+  const sl={excellent:'Excellent',ontrack:'On Track',moderate:'Moderate',low:'Low'},si={excellent:'★',ontrack:'✓',moderate:'~',low:'✗'};
+  document.getElementById('gaugeStatusBadge').innerHTML=`<span class="gauge-status gauge-${data.status}">${si[data.status]||''} ${sl[data.status]||''}</span>`}
+
+function buildDOWChart(data){destroyChart('dow');const mx=Math.max(...data.map(d=>d.avgDaily),1);
+  charts.dow=new Chart(document.getElementById('dowChart').getContext('2d'),{type:'bar',data:{labels:data.map(d=>d.dayName.slice(0,3)),
+    datasets:[{data:data.map(d=>d.avgDaily),backgroundColor:data.map(d=>`rgba(16,185,129,${0.2+(d.avgDaily/mx)*0.6})`),borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' Avg: '+fmtUGX(c.raw)}}},
+      scales:{x:{grid:{display:false},ticks:{color:tc(),font:{size:9}}},y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>fmtUGX(v)}}}}});
+  document.getElementById('dowGrid').innerHTML=data.map(d=>{const int=d.avgDaily/mx;
+    return`<div class="dow-cell" style="background:rgba(16,185,129,${0.02+int*0.1})"><div class="dow-day">${d.dayName.slice(0,3)}</div>
+      <div class="dow-value">${fmtUGX(d.avgDaily)}</div><div class="dow-sub">${fmtNum(d.txnCount)} txns</div></div>`}).join('')}
+
+function buildPARTrendChart(data){destroyChart('parTrend');
+  charts.parTrend=new Chart(document.getElementById('parTrendChart').getContext('2d'),{type:'line',data:{labels:data.map(d=>d.month),datasets:[
+    {label:'PAR 30',data:data.map(d=>d.par30Rate),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.06)',borderWidth:2.5,fill:true,tension:.3,
+      pointBackgroundColor:'#ef4444',pointBorderColor:db(),pointBorderWidth:2,pointRadius:4,pointHoverRadius:6},
+    {label:'Target 5%',data:data.map(()=>5),borderColor:'rgba(16,185,129,.4)',borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:tc(),font:{size:9}}},
+      tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+c.raw+'%'}}},
+      scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:9}}},y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>v+'%'},min:0}}}})}
+
+/* ══ SORTABLE TABLE RENDERERS ══ */
+function renderOfficerTable(data){officerData=data;
+  const sorted=[...data].sort((a,b)=>officerSortKey==='par30Rate'?a[officerSortKey]-b[officerSortKey]:b[officerSortKey]-a[officerSortKey]);
+  const mx=Math.max(...sorted.map(o=>o.disbursedAmount),1);
+  document.getElementById('officerTableBody').innerHTML=sorted.length===0?'<tr><td colspan="9" class="empty-state">No data</td></tr>'
+    :sorted.map((o,i)=>`<tr>
+      <td><span class="rank-badge rank-${i<3?i+1:'n'}">${i+1}</span></td>
+      <td><div class="officer-name">${o.officerName}</div></td>
+      <td><span class="officer-branch">${o.branchName}</span></td>
+      <td>${fmtNum(o.loansDisbursed)}</td>
+      <td>${fmtUGX(o.disbursedAmount)}<div class="progress-bar" style="margin-top:.2rem"><div class="progress-fill" style="width:${Math.round(o.disbursedAmount/mx*100)}%;background:var(--accent)"></div></div></td>
+      <td>${fmtNum(o.activeLoans)}</td>
+      <td>${fmtUGX(o.collectedAmount)}</td>
+      <td><span style="color:${o.par30Rate<=5?'var(--accent)':o.par30Rate<=10?'var(--accent-orange)':'var(--accent-red)'}">${fmtPct(o.par30Rate)}</span></td>
+      <td><span class="score-chip ${scoreClass(o.par30Rate)}">${scoreLabel(o.par30Rate)}</span></td></tr>`).join('')}
+
+function renderBranchTable(data){branchData=data;
+  const sorted=[...data].sort((a,b)=>b[branchSortKey]-a[branchSortKey]);
+  const mx=Math.max(...sorted.map(b=>b.disbursedAmount),1);
+  document.getElementById('branchTableBody').innerHTML=sorted.length===0?'<tr><td colspan="8" class="empty-state">No data</td></tr>'
+    :sorted.map((b,i)=>{const cr=b.disbursedAmount>0?(b.collectedAmount/b.disbursedAmount*100).toFixed(1):'0.0';
+      return`<tr><td><span class="rank-badge rank-${i<3?i+1:'n'}">${i+1}</span></td>
+      <td style="font-weight:600">${b.branchName}</td><td>${fmtNum(b.loansDisbursed)}</td>
+      <td>${fmtUGX(b.disbursedAmount)}<div class="progress-bar" style="margin-top:.2rem"><div class="progress-fill" style="width:${Math.round(b.disbursedAmount/mx*100)}%;background:var(--accent)"></div></div></td>
+      <td>${fmtUGX(b.collectedAmount)}</td><td>${fmtNum(b.activeLoans)}</td><td>${fmtUGX(b.totalOutstanding)}</td>
+      <td><span class="score-chip ${parseFloat(cr)>=80?'score-excellent':parseFloat(cr)>=50?'score-good':'score-warning'}">${cr}%</span></td></tr>`}).join('')}
+
+document.querySelectorAll('.sort-tab').forEach(tab=>{tab.addEventListener('click',()=>{
+  const tt=tab.dataset.table,sk=tab.dataset.sort;tab.closest('.sort-tabs').querySelectorAll('.sort-tab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');if(tt==='officer'){officerSortKey=sk;renderOfficerTable(officerData)}else{branchSortKey=sk;renderBranchTable(branchData)}})});
+
+/* ══ DATA LOADERS ══ */
+// ── Each loader shows its own section error AND re-throws so loadAll can count failures.
+// ── Sparklines / branchList are non-critical — they fail silently (no count).
+
+async function loadKPIs(p,b){try{
+  const bp=b&&b!=='all'?`&branch=${b}`:'';
+  const r=await fetch(`${API_BASE}/api/nova/kpis?period=${p}${bp}`);
+  if(!r.ok)throw new Error(`KPIs HTTP ${r.status}`);
+  const{data}=await r.json();
+  document.getElementById('kpiTotalPortfolio').textContent=fmtUGX(data.totalPortfolio.total);
+  document.getElementById('kpiTotalPortfolioCount').textContent=fmtNum(data.totalPortfolio.loanCount)+' loans (all-time)';
+  document.getElementById('kpiPortfolioOutstanding').textContent=fmtUGX(data.portfolioOutstanding.total);
+  document.getElementById('kpiPortfolioOutstandingCount').textContent=fmtNum(data.portfolioOutstanding.loanCount)+' loans on book';
+  document.getElementById('kpiDisbTotal').textContent=fmtUGX(data.disbursements.total);
+  document.getElementById('kpiDisbCount').textContent=fmtNum(data.disbursements.loanCount)+' loans';
+  changeChip(document.getElementById('kpiDisbChange'),data.disbursements.change);
+  document.getElementById('kpiColTotal').textContent=fmtUGX(data.collections.total);
+  document.getElementById('kpiColCount').textContent=fmtNum(data.collections.txnCount)+' txns';
+  changeChip(document.getElementById('kpiColChange'),data.collections.change);
+  const rate=data.collectionRate;document.getElementById('kpiColRate').textContent=fmtPct(rate);
+  const re=document.getElementById('kpiColRateChip');re.textContent=rate>=90?'Excellent':rate>=80?'On Track':rate>=50?'Moderate':'Low';
+  re.className='metric-change '+(rate>=80?'up':rate>=50?'neutral':'down');
+  document.getElementById('kpiActiveLoans').textContent=fmtNum(data.activeLoans.count);
+  document.getElementById('kpiActiveClients').textContent=fmtNum(data.activeLoans.clientCount)+' clients';
+  document.getElementById('kpiOutstanding').textContent='Outstanding: '+fmtUGX(data.activeLoans.totalOutstanding);
+  document.getElementById('kpiPAR').textContent=fmtPct(data.par30.rate);
+  document.getElementById('kpiPARAmount').textContent=fmtUGX(data.par30.amount)+' at risk';
+  document.getElementById('kpiPARBadge').innerHTML=parBadge(data.par30.rate,data.par30.status);
+  document.getElementById('kpiAvgLoan').textContent=fmtUGX(data.avgLoanSize.amount);
+}catch(e){showToast('KPIs failed: '+e.message,'error');throw e}}
+
+async function loadRetention(p,b){try{
+  const bp=b&&b!=='all'?`&branch=${b}`:'';
+  const r=await fetch(`${API_BASE}/api/nova/retention?period=${p}${bp}`);
+  if(!r.ok)throw new Error(`Retention HTTP ${r.status}`);
+  const{data}=await r.json();
+  document.getElementById('kpiRetention').textContent=fmtPct(data.retentionPct);
+  document.getElementById('kpiRetentionSub').textContent=`${fmtNum(data.retainedClients)} of ${fmtNum(data.eligibleClients)} eligible`;
+  document.getElementById('kpiRetentionBadge').innerHTML=parBadge(data.retentionPct,
+    data.retentionPct>=70?'excellent':data.retentionPct>=50?'good':data.retentionPct>=30?'warning':'danger');
+}catch(e){document.getElementById('kpiRetention').textContent='—';throw e}}
+
+async function loadSparklines(b){try{
+  const bp=b&&b!=='all'?`?branch=${b}`:'';
+  const r=await fetch(`${API_BASE}/api/nova/sparklines${bp}`);if(!r.ok)return;
+  const{data}=await r.json();
+  // Colors match trend chart: disbursements=blue, collections=green
+  buildSparkline('sparkDisb',data.disbursements,'#3b82f6');
+  buildSparkline('sparkCol',data.collections,'#10b981');
+  buildSparkline('sparkLoans',data.loanCount,'#06b6d4');
+}catch(e){/* non-critical — fails silently */}}
+
+async function loadTimeSeries(p,b){try{
+  const bp=b&&b!=='all'?`&branch=${b}`:'';
+  const r=await fetch(`${API_BASE}/api/nova/timeseries?period=${p}${bp}`);
+  if(!r.ok)throw new Error(`Timeseries HTTP ${r.status}`);
+  const{data}=await r.json();
+  document.getElementById('trendChart').style.display='';
+  buildTrendChart(data.disbursements,data.collections);
+}catch(e){showSectionError('trendSection',e.message);throw e}}
+
+async function loadProducts(p,b){try{
+  const bp=b&&b!=='all'?`&branch=${b}`:'';
+  const r=await fetch(`${API_BASE}/api/nova/products?period=${p}${bp}`);
+  if(!r.ok)throw new Error(`Products HTTP ${r.status}`);
+  const{data}=await r.json();
+  document.getElementById('productChart').style.display='';
+  buildProductChart(data);
+}catch(e){showSectionError('productSection',e.message);throw e}}
+
+async function loadBranches(p,b){try{
+  const bp=b&&b!=='all'?`&branch=${b}`:'';
+  const r=await fetch(`${API_BASE}/api/nova/branches?period=${p}${bp}`);
+  if(!r.ok)throw new Error(`Branches HTTP ${r.status}`);
+  const{data}=await r.json();
+  document.getElementById('branchChart').style.display='';
+  buildBranchChart(data);renderBranchTable(data);
+}catch(e){showSectionError('branchChartSection',e.message);showSectionError('branchTableSection',e.message);throw e}}
+
+async function loadOfficers(p,b){try{
+  const bp=b&&b!=='all'?`&branch=${b}`:'';
+  const r=await fetch(`${API_BASE}/api/nova/officers?period=${p}${bp}`);
+  if(!r.ok)throw new Error(`Officers HTTP ${r.status}`);
+  const{data}=await r.json();
+  const lbl=p==='week'?'This Week':p==='month'?'Month':p==='today'?'Today':p.charAt(0).toUpperCase()+p.slice(1);
+  document.getElementById('officerSubtitle').textContent=`${data.length} officers — ${lbl}`;
+  renderOfficerTable(data);
+}catch(e){showSectionError('officerSection',e.message);throw e}}
+
+async function loadArrears(b){try{
+  const bp=b&&b!=='all'?`?branch=${b}`:'';
+  const r=await fetch(`${API_BASE}/api/nova/arrears${bp}`);
+  if(!r.ok)throw new Error(`Arrears HTTP ${r.status}`);
+  const{data}=await r.json();
+  document.getElementById('arrearsChart').style.display='';
+  buildArrearsChart(data.bands);
+}catch(e){showSectionError('arrearsSection',e.message);throw e}}
+
+async function loadCollectionTarget(p,b){try{
+  const bp=b&&b!=='all'?`&branch=${b}`:'';
+  const r=await fetch(`${API_BASE}/api/nova/collection-target?period=${p}${bp}`);
+  if(!r.ok)throw new Error(`Collection target HTTP ${r.status}`);
+  const{data}=await r.json();
+  document.getElementById('gaugeChart').style.display='';
+  buildGaugeChart(data);
+}catch(e){showSectionError('gaugeSection',e.message);throw e}}
+
+async function loadDOW(){try{
+  const r=await fetch(`${API_BASE}/api/nova/collection-dow`);
+  if(!r.ok)throw new Error(`DOW HTTP ${r.status}`);
+  const{data}=await r.json();
+  document.getElementById('dowChart').style.display='';
+  buildDOWChart(data);
+}catch(e){showSectionError('dowSection',e.message);throw e}}
+
+async function loadPARTrend(){try{
+  const r=await fetch(`${API_BASE}/api/nova/par-trend`);
+  if(!r.ok)throw new Error(`PAR trend HTTP ${r.status}`);
+  const{data}=await r.json();
+  document.getElementById('parTrendChart').style.display='';
+  buildPARTrendChart(data);
+}catch(e){showSectionError('parTrendSection',e.message);throw e}}
+
+async function loadBranchList(){if(branchListLoaded)return;try{
+  const r=await fetch(`${API_BASE}/api/nova/branch-list`);
+  if(!r.ok)return;
+  const{data}=await r.json();
+  const sel=document.getElementById('branchFilter');
+  while(sel.options.length>1)sel.remove(1);
+  data.forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=b.name;sel.appendChild(o)});
+  branchListLoaded=true;
+}catch(e){console.warn('Branch list:',e.message)}}
+
+/* ══ MAIN LOADER ══
+   Critical loaders (those that re-throw) counted via Promise.allSettled.
+   Non-critical: sparklines, branchList — always settle as fulfilled. */
+async function loadAll(){
+  const p=currentPeriod,b=currentBranch,dot=document.getElementById('statusDot');
+  dot.style.background='var(--accent-orange)';
+  setLoading(10);const t0=Date.now();
+  document.querySelectorAll('.section-error').forEach(e=>e.remove());
+  const results=await Promise.allSettled([
+    loadKPIs(p,b), loadRetention(p,b), loadSparklines(b), loadTimeSeries(p,b),
+    loadCollectionTarget(p,b), loadProducts(p,b), loadBranches(p,b),
+    loadOfficers(p,b), loadArrears(b), loadDOW(), loadPARTrend(), loadBranchList()
+  ]);
+  setLoading(100);
+  const elapsed=((Date.now()-t0)/1000).toFixed(1);
+  const failed=results.filter(r=>r.status==='rejected').length;
+  dot.style.background=failed===0?'var(--accent)':'var(--accent-orange)';
+  if(failed===0)showToast(`Refreshed in ${elapsed}s`,'success',3000);
+  else showToast(`${failed} section(s) failed — check console`,'error',5000);
+  document.getElementById('lastUpdate').textContent='Updated: '+new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('printDate').textContent='Generated: '+new Date().toLocaleString();
+  setTimeout(()=>setLoading(0),800)}
+
+/* ══ EVENTS ══ */
+document.querySelectorAll('.period-btn').forEach(b=>{b.addEventListener('click',()=>{
+  document.querySelectorAll('.period-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');currentPeriod=b.dataset.period;loadAll()})});
+document.getElementById('branchFilter').addEventListener('change',e=>{
+  currentBranch=e.target.value;
+  const isFiltered=currentBranch!=='all';
+  document.getElementById('branchClearBtn').style.display=isFiltered?'flex':'none';
+  e.target.classList.toggle('filtered',isFiltered);
+  showToast(isFiltered?`Branch: ${e.target.selectedOptions[0].text}`:'Branch: All','info',2000);
+  loadAll();
+});
+document.getElementById('branchClearBtn').addEventListener('click',()=>{
+  const sel=document.getElementById('branchFilter');
+  sel.value='all';sel.classList.remove('filtered');
+  document.getElementById('branchClearBtn').style.display='none';
+  currentBranch='all';showToast('Branch: All','info',2000);loadAll();
+});
+setInterval(loadAll,5*60*1000);
+loadAll();
+</script>
+</body>
+</html>
