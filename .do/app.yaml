@@ -1,0 +1,42 @@
+name: nova-dashboard-backend
+region: lon  # Change to your preferred region (nyc, sfo, sgp, lon, fra, etc.)
+
+services:
+  - name: api
+    source_dir: /
+    github:
+      repo: Chrl3y/Final_Dashboard_Performance
+      branch: backend
+      deploy_on_push: true
+    run_command: node server.js
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    http_port: 3000
+    health_check:
+      http_path: /health
+    envs:
+      - key: METABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: METABASE_SITE_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: METABASE_USERNAME
+        scope: RUN_TIME
+        type: SECRET
+      - key: METABASE_PASSWORD
+        scope: RUN_TIME
+        type: SECRET
+      - key: METABASE_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: NOVA_DB_ID
+        scope: RUN_TIME
+        value: "2"
+      - key: CACHE_TTL
+        scope: RUN_TIME
+        value: "3600"
+      - key: PORT
+        scope: RUN_TIME
+        value: "3000"
