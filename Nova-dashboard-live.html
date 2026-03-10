@@ -321,6 +321,11 @@
     ::-webkit-scrollbar-thumb{background:var(--glass-border);border-radius:3px}
     ::-webkit-scrollbar-thumb:hover{background:var(--glass-border-hover)}
   </style>
+  <!-- Runtime config: override API_BASE for production -->
+  <script>
+    // Injected at build/deploy time by DigitalOcean or set via config.js
+    window.NOVA_API_BASE = window.NOVA_API_BASE || '';
+  </script>
 </head>
 <body>
 
@@ -573,7 +578,7 @@
 </div>
 
 <script>
-const API_BASE='http://localhost:3000';
+const API_BASE = window.NOVA_API_BASE || 'http://localhost:3000';
 let currentPeriod='week',currentBranch='all',charts={},branchListLoaded=false;
 let officerData=[],branchData=[],officerSortKey='disbursedAmount',branchSortKey='disbursedAmount';
 

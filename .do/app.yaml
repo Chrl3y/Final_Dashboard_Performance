@@ -1,0 +1,16 @@
+name: nova-dashboard-frontend
+region: lon
+
+static_sites:
+  - name: dashboard
+    source_dir: /
+    github:
+      repo: Chrl3y/Final_Dashboard_Performance
+      branch: frontend
+      deploy_on_push: true
+    index_document: Nova-dashboard-live.html
+    error_document: Nova-dashboard-live.html
+    envs:
+      - key: NOVA_API_BASE
+        scope: RUN_TIME
+        value: "https://your-backend-app.ondigitalocean.app"
