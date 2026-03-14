@@ -19,6 +19,7 @@ const {
   METABASE_USERNAME,
   METABASE_PASSWORD,
   METABASE_SECRET,
+  ANTHROPIC_API_KEY,
   PORT          = 3000,
   CACHE_TTL     = 3600,   // session cache: 1 hr
   NOVA_DB_ID    = 2
@@ -698,6 +699,285 @@ app.post('/metabase/embed-url', (req, res) => {
     );
     res.json({ success: true, url: `${METABASE_SITE_URL}/embed/dashboard/${token}#theme=night&bordered=false&titled=true` });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── /api/nova/ai-insight ─────────────────────────────────────────────────────
+// Gathers live KPI + branch + officer + arrears data, calls Claude for a
+// management briefing. POST body: { period, branch, userContext }
+app.post('/api/nova/ai-insight', async (req, res) => {
+  try {
+    if (!ANTHROPIC_API_KEY)
+      return res.status(503).json({ success: false, error: 'ANTHROPIC_API_KEY not set in .env' });
+
+    const { period = 'month', branch, userContext = '' } = req.body;
+    const p      = period;
+    const bId    = branch && branch !== 'all' ? branch : null;
+    const disbW  = periodWhere('ml.disbursedon_date', p);
+    const disbP  = prevWhere('ml.disbursedon_date', p);
+    const colW   = periodWhere('mlt.created_date', p);
+    const colP   = prevWhere('mlt.created_date', p);
+    const schedW = periodWhere('rs.duedate', p);
+    const BF     = bf(bId);
+    const BFTXN  = bfTxn(bId);
+    const bWhere = bId ? `AND mo.id = ${parseInt(bId)}` : '';
+    const oWhere = bId ? `AND ms.office_id = ${parseInt(bId)}` : '';
+
+    const [
+      disbCur, disbPrv, colCur, colPrv, active, par, avg,
+      targetRows, colTargetRows,
+      loanRows, branchColRows,
+      officerRows, officerColRows,
+      arrearsRows
+    ] = await Promise.all([
+
+      // ── KPIs ──────────────────────────────────────────────────────────────
+      runSQL(`SELECT COUNT(*) AS cnt, COALESCE(SUM(ml.principal_disbursed_derived),0) AS total
+              FROM m_loan ml JOIN m_client mc ON mc.id = ml.client_id
+              WHERE ${disbW} AND ml.loan_status_id IN (300,500,602) ${BF}`),
+      runSQL(`SELECT COALESCE(SUM(ml.principal_disbursed_derived),0) AS total
+              FROM m_loan ml JOIN m_client mc ON mc.id = ml.client_id
+              WHERE ${disbP} AND ml.loan_status_id IN (300,500,602) ${BF}`),
+      runSQL(`SELECT COUNT(*) AS cnt, COALESCE(SUM(mlt.amount),0) AS total
+              FROM m_loan_transaction mlt
+              WHERE mlt.transaction_type_enum = 2 AND mlt.is_reversed = 0 AND ${colW} ${BFTXN}`),
+      runSQL(`SELECT COALESCE(SUM(mlt.amount),0) AS total
+              FROM m_loan_transaction mlt
+              WHERE mlt.transaction_type_enum = 2 AND mlt.is_reversed = 0 AND ${colP} ${BFTXN}`),
+      runSQL(`SELECT COUNT(*) AS cnt, COUNT(DISTINCT ml.client_id) AS clients,
+                     COALESCE(SUM(ml.principal_outstanding_derived),0) AS outstanding
+              FROM m_loan ml JOIN m_client mc ON mc.id = ml.client_id
+              WHERE ml.loan_status_id = 300 ${BF}`),
+      runSQL(`SELECT COALESCE(SUM(laa.principal_overdue_derived),0) AS overdue,
+                     COALESCE(SUM(ml.principal_outstanding_derived),0) AS outstanding
+              FROM m_loan ml JOIN m_client mc ON mc.id = ml.client_id
+              LEFT JOIN m_loan_arrears_aging laa ON laa.loan_id = ml.id
+              WHERE ml.loan_status_id = 300 ${BF}`),
+      runSQL(`SELECT COALESCE(AVG(ml.principal_disbursed_derived),0) AS avg_loan
+              FROM m_loan ml JOIN m_client mc ON mc.id = ml.client_id
+              WHERE ${disbW} AND ml.loan_status_id IN (300,500,602) ${BF}`),
+
+      // ── Collection vs target ───────────────────────────────────────────────
+      runSQL(`SELECT COALESCE(SUM(rs.principal_amount + COALESCE(rs.interest_amount,0) + COALESCE(rs.fee_charges_amount,0)),0) AS total_due
+              FROM m_loan_repayment_schedule rs
+              JOIN m_loan ml ON ml.id = rs.loan_id
+              JOIN m_client mc ON mc.id = ml.client_id
+              WHERE ml.loan_status_id IN (300,500,602) AND ${schedW} ${BF}`),
+      runSQL(`SELECT COALESCE(SUM(mlt.amount),0) AS total_collected
+              FROM m_loan_transaction mlt
+              WHERE mlt.transaction_type_enum = 2 AND mlt.is_reversed = 0 AND ${colW} ${BFTXN}`),
+
+      // ── Branch performance ─────────────────────────────────────────────────
+      runSQL(`SELECT mo.id AS branch_id, mo.name AS branch_name,
+                COUNT(DISTINCT CASE WHEN ${disbW} AND ml.loan_status_id IN (300,500,602) THEN ml.id END) AS loans_disbursed,
+                COALESCE(SUM(CASE WHEN ${disbW} AND ml.loan_status_id IN (300,500,602) THEN ml.principal_disbursed_derived ELSE 0 END),0) AS disbursed_amount,
+                COUNT(DISTINCT CASE WHEN ml.loan_status_id = 300 THEN ml.id END) AS active_loans,
+                COALESCE(SUM(CASE WHEN ml.loan_status_id = 300 THEN ml.principal_outstanding_derived ELSE 0 END),0) AS total_outstanding,
+                COALESCE(SUM(CASE WHEN ml.loan_status_id = 300 THEN laa.principal_overdue_derived ELSE 0 END),0) AS par_overdue
+              FROM m_office mo
+              JOIN m_client mc ON mc.office_id = mo.id
+              LEFT JOIN m_loan ml ON ml.client_id = mc.id
+              LEFT JOIN m_loan_arrears_aging laa ON laa.loan_id = ml.id
+              WHERE mo.parent_id IS NOT NULL ${bWhere}
+              GROUP BY mo.id, mo.name ORDER BY disbursed_amount DESC`),
+      runSQL(`SELECT mc.office_id AS branch_id, COALESCE(SUM(mlt.amount),0) AS collected_amount
+              FROM m_loan_transaction mlt
+              JOIN m_loan ml ON ml.id = mlt.loan_id
+              JOIN m_client mc ON mc.id = ml.client_id
+              WHERE mlt.transaction_type_enum = 2 AND mlt.is_reversed = 0 AND ${colW}
+              ${bId ? `AND mc.office_id = ${parseInt(bId)}` : ''}
+              GROUP BY mc.office_id`),
+
+      // ── Officer performance (top 20) ───────────────────────────────────────
+      runSQL(`SELECT ms.id AS officer_id, ms.display_name AS officer_name, mo.name AS branch_name,
+                COUNT(DISTINCT CASE WHEN ${disbW} AND ml.loan_status_id IN (300,500,602) THEN ml.id END) AS loans_disbursed,
+                COALESCE(SUM(CASE WHEN ${disbW} AND ml.loan_status_id IN (300,500,602) THEN ml.principal_disbursed_derived ELSE 0 END),0) AS disbursed_amount,
+                COUNT(DISTINCT CASE WHEN ml.loan_status_id = 300 THEN ml.id END) AS active_loans,
+                COALESCE(SUM(CASE WHEN ml.loan_status_id = 300 THEN ml.principal_outstanding_derived ELSE 0 END),0) AS total_outstanding,
+                COALESCE(SUM(CASE WHEN ml.loan_status_id = 300 THEN laa.principal_overdue_derived ELSE 0 END),0) AS par_overdue
+              FROM m_staff ms
+              JOIN m_office mo ON mo.id = ms.office_id
+              LEFT JOIN m_loan ml ON ml.loan_officer_id = ms.id
+              LEFT JOIN m_loan_arrears_aging laa ON laa.loan_id = ml.id AND ml.loan_status_id = 300
+              WHERE ms.is_loan_officer = 1 AND ms.is_active = 1 ${oWhere}
+              GROUP BY ms.id, ms.display_name, mo.name
+              HAVING loans_disbursed > 0 OR active_loans > 0
+              ORDER BY disbursed_amount DESC LIMIT 20`),
+      runSQL(`SELECT ml.loan_officer_id AS officer_id, COALESCE(SUM(mlt.amount),0) AS collected_amount
+              FROM m_loan_transaction mlt
+              JOIN m_loan ml ON ml.id = mlt.loan_id
+              ${bId ? `JOIN m_client mc ON mc.id = ml.client_id AND mc.office_id = ${parseInt(bId)}` : ''}
+              WHERE mlt.transaction_type_enum = 2 AND mlt.is_reversed = 0 AND ${colW}
+                AND ml.loan_officer_id IS NOT NULL
+              GROUP BY ml.loan_officer_id`),
+
+      // ── Arrears aging ──────────────────────────────────────────────────────
+      runSQL(`SELECT
+                SUM(CASE WHEN days_in_arrears BETWEEN 1  AND 30 THEN 1 ELSE 0 END) AS count_1_30,
+                SUM(CASE WHEN days_in_arrears BETWEEN 31 AND 60 THEN 1 ELSE 0 END) AS count_31_60,
+                SUM(CASE WHEN days_in_arrears BETWEEN 61 AND 90 THEN 1 ELSE 0 END) AS count_61_90,
+                SUM(CASE WHEN days_in_arrears > 90              THEN 1 ELSE 0 END) AS count_90plus,
+                SUM(CASE WHEN days_in_arrears BETWEEN 1  AND 30 THEN outstanding ELSE 0 END) AS amt_1_30,
+                SUM(CASE WHEN days_in_arrears BETWEEN 31 AND 60 THEN outstanding ELSE 0 END) AS amt_31_60,
+                SUM(CASE WHEN days_in_arrears BETWEEN 61 AND 90 THEN outstanding ELSE 0 END) AS amt_61_90,
+                SUM(CASE WHEN days_in_arrears > 90              THEN outstanding ELSE 0 END) AS amt_90plus
+              FROM (
+                SELECT ml.id,
+                       DATEDIFF(CURDATE(), MIN(rs.duedate)) AS days_in_arrears,
+                       ml.principal_outstanding_derived AS outstanding
+                FROM m_loan ml
+                JOIN m_client mc ON mc.id = ml.client_id
+                JOIN m_loan_repayment_schedule rs ON rs.loan_id = ml.id
+                WHERE ml.loan_status_id = 300 AND rs.duedate < CURDATE() AND rs.completed_derived = 0 ${BF}
+                GROUP BY ml.id
+              ) sub WHERE days_in_arrears > 0`)
+    ]);
+
+    // ── Format helpers ────────────────────────────────────────────────────────
+    const fmtM = n => n >= 1e9 ? `UGX ${(n/1e9).toFixed(2)}B`
+                    : n >= 1e6 ? `UGX ${(n/1e6).toFixed(1)}M`
+                    : n >= 1e3 ? `UGX ${(n/1e3).toFixed(0)}K`
+                    : `UGX ${Math.round(n).toLocaleString()}`;
+    const chgStr = (c, pv) => pv > 0
+      ? `${c >= pv ? '+' : ''}${((c-pv)/pv*100).toFixed(1)}% vs prior period`
+      : 'no prior period data';
+
+    // ── Calculations ──────────────────────────────────────────────────────────
+    const disbTotal  = num(disbCur, 'total');
+    const colTotal   = num(colCur,  'total');
+    const parOverdue = num(par, 'overdue');
+    const parPort    = num(par, 'outstanding', 1);
+    const parRate    = parPort > 0 ? Math.round(parOverdue / parPort * 10000) / 100 : 0;
+    const parStatus  = parRate < 3 ? 'Excellent (<3%)' : parRate < 5 ? 'Good (3–5%)' : parRate < 10 ? 'At Risk (5–10%)' : 'Critical (>10%)';
+    const colRate    = disbTotal > 0 ? (colTotal / disbTotal * 100).toFixed(1) : '0.0';
+    const totalDue   = num(targetRows, 'total_due');
+    const colTarget  = num(colTargetRows, 'total_collected');
+    const achievement = totalDue > 0 ? (colTarget / totalDue * 100).toFixed(1) : '0.0';
+    const periodLabel = { today:'Today', week:'This Week', month:'This Month', quarter:'This Quarter', year:'This Year', uptodate:'All Time' }[p] || p;
+
+    // ── Build branch table ────────────────────────────────────────────────────
+    const bColMap  = Object.fromEntries(branchColRows.map(r => [r.branch_id, parseFloat(r.collected_amount)||0]));
+    const branches = loanRows.map(r => ({
+      name:      r.branch_name,
+      disbursed: parseFloat(r.disbursed_amount)||0,
+      collected: bColMap[r.branch_id] || 0,
+      activeLoans: parseInt(r.active_loans)||0,
+      outstanding: parseFloat(r.total_outstanding)||0,
+      parRate:   (() => { const os=parseFloat(r.total_outstanding)||0; const ov=parseFloat(r.par_overdue)||0; return os>0?Math.round(ov/os*10000)/100:0; })()
+    })).filter(b => b.disbursed > 0 || b.activeLoans > 0);
+
+    const branchTable = branches.length > 0
+      ? branches.map(b =>
+          `  ${b.name}: Disbursed ${fmtM(b.disbursed)}, Collected ${fmtM(b.collected)}, ` +
+          `Active ${b.activeLoans} loans, Col.Rate ${b.disbursed>0?(b.collected/b.disbursed*100).toFixed(1):0}%, PAR ${b.parRate}%`
+        ).join('\n')
+      : '  No branch data';
+
+    // ── Build officer tables ──────────────────────────────────────────────────
+    const oColMap  = Object.fromEntries(officerColRows.map(r => [r.officer_id, parseFloat(r.collected_amount)||0]));
+    const officers = officerRows.map(r => {
+      const os = parseFloat(r.total_outstanding)||0;
+      const ov = parseFloat(r.par_overdue)||0;
+      return {
+        name: r.officer_name, branch: r.branch_name,
+        disbursed:  parseFloat(r.disbursed_amount)||0,
+        activeLoans: parseInt(r.active_loans)||0,
+        collected:  oColMap[r.officer_id] || 0,
+        parRate:    os > 0 ? Math.round(ov/os*10000)/100 : 0
+      };
+    });
+    const topOfficers = [...officers].sort((a,b) => b.disbursed - a.disbursed).slice(0,5);
+    const highPAR     = [...officers].filter(o => o.parRate > 5).sort((a,b) => b.parRate - a.parRate).slice(0,5);
+
+    const officerTable = topOfficers.length > 0
+      ? topOfficers.map(o =>
+          `  ${o.name} (${o.branch}): Disbursed ${fmtM(o.disbursed)}, Collected ${fmtM(o.collected)}, Active ${o.activeLoans} loans, PAR ${o.parRate}%`
+        ).join('\n')
+      : '  No officer data';
+    const highPARTable = highPAR.length > 0
+      ? highPAR.map(o => `  ${o.name} (${o.branch}): PAR ${o.parRate}%, Active ${o.activeLoans} loans`).join('\n')
+      : '  None above 5% threshold — good standing';
+
+    const arrearsTable =
+      `  1–30 days:  ${int(arrearsRows,'count_1_30')} loans, ${fmtM(num(arrearsRows,'amt_1_30'))}\n` +
+      `  31–60 days: ${int(arrearsRows,'count_31_60')} loans, ${fmtM(num(arrearsRows,'amt_31_60'))}\n` +
+      `  61–90 days: ${int(arrearsRows,'count_61_90')} loans, ${fmtM(num(arrearsRows,'amt_61_90'))}\n` +
+      `  90+ days:   ${int(arrearsRows,'count_90plus')} loans, ${fmtM(num(arrearsRows,'amt_90plus'))}`;
+
+    const contextSection = userContext.trim()
+      ? `\nADDITIONAL CONTEXT FROM MANAGEMENT:\n${userContext.trim()}\n`
+      : '';
+
+    // ── Prompt ────────────────────────────────────────────────────────────────
+    const prompt =
+`You are a senior financial performance analyst advising the management team of a microfinance institution (MFI) in Uganda called Nova. You have access to live portfolio data.
+
+PERIOD: ${periodLabel}${contextSection}
+
+═══ KEY PERFORMANCE INDICATORS ═══
+Disbursements:         ${fmtM(disbTotal)} — ${chgStr(disbTotal, num(disbPrv,'total'))} (${int(disbCur,'cnt')} loans)
+Collections:           ${fmtM(colTotal)} — ${chgStr(colTotal, num(colPrv,'total'))} (${int(colCur,'cnt')} transactions)
+Collection Rate:       ${colRate}% (collections as % of disbursements)
+Collection vs Target:  ${achievement}% achievement (collected ${fmtM(colTarget)} of ${fmtM(totalDue)} scheduled)
+Active Loans:          ${int(active,'cnt')} loans across ${int(active,'clients')} clients
+Portfolio Outstanding: ${fmtM(num(active,'outstanding'))}
+PAR > 30 Days:         ${parRate}% — ${fmtM(parOverdue)} at risk — Status: ${parStatus}
+Average Loan Size:     ${fmtM(Math.round(num(avg,'avg_loan')))}
+
+═══ BRANCH PERFORMANCE ═══
+${branchTable}
+
+═══ TOP 5 OFFICERS (by disbursement) ═══
+${officerTable}
+
+═══ HIGH-RISK OFFICERS (PAR > 5%) ═══
+${highPARTable}
+
+═══ ARREARS AGING ═══
+${arrearsTable}
+
+───────────────────────────────────────────────────────────────────────────────
+Generate a management briefing using EXACTLY these five section headers (use ## for each):
+
+## Executive Summary
+2-3 sentences: overall portfolio health, the most important win, and the most critical concern.
+
+## Portfolio Health
+Analyse disbursement momentum, collection efficiency, and balance sheet strength. Compare to prior period. Identify trends.
+
+## Risk Flags
+Name specific branches or officers with high PAR. Highlight arrears aging buckets with concerning volumes. Flag any collection shortfall vs target. Quantify every risk.
+
+## Performance Highlights
+Name the top-performing branch and officer. Name the lowest-performing. What does the performance gap tell management?
+
+## Recommended Actions
+List 4-5 specific, numbered, prioritised actions for management THIS WEEK. Each must reference actual data (names, amounts, percentages). No generic advice.
+
+Be direct and specific. Use UGX amounts. Write for senior management, not analysts.`;
+
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1400,
+      messages: [{ role: 'user', content: prompt }]
+    }, {
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      timeout: 60000
+    });
+
+    res.json({
+      success: true,
+      insight: response.data.content[0].text,
+      period: periodLabel,
+      generatedAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('[ai-insight]', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

@@ -294,6 +294,71 @@
     }
     .vvv-signature:hover{opacity:.9}
 
+    /* ══ INSIGHTS TAB ══ */
+    .insights-tab-btn{padding:.4rem .85rem;border-radius:10px;color:var(--text-secondary);cursor:pointer;
+      font-size:.72rem;font-family:inherit;display:inline-flex;align-items:center;gap:.35rem;font-weight:700;
+      background:var(--bg-card);border:1px solid var(--glass-border);transition:all .2s;
+      backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur))}
+    .insights-tab-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+    .insights-tab-btn.active{background:linear-gradient(135deg,var(--accent),var(--accent-dark));
+      color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(16,185,129,.25)}
+
+    /* ══ INSIGHTS PANEL ══ */
+    #insightsPanel{display:none}
+    .insights-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem}
+    .insights-title{font-size:1.1rem;font-weight:800;display:flex;align-items:center;gap:.5rem}
+    .insights-spark{background:linear-gradient(135deg,var(--accent),var(--accent-blue));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-size:1.2rem}
+    .insights-subtitle{font-size:.75rem;color:var(--text-secondary);margin-top:.2rem}
+
+    .context-area{width:100%;padding:.75rem 1rem;border-radius:12px;font-size:.82rem;font-family:inherit;
+      background:var(--bg-card);border:1px solid var(--glass-border);color:var(--text-primary);
+      resize:vertical;min-height:72px;transition:border-color .2s;line-height:1.6}
+    .context-area:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+    .context-area::placeholder{color:var(--text-tertiary)}
+    .context-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+      color:var(--text-secondary);margin-bottom:.4rem;display:block}
+
+    .generate-btn{padding:.55rem 1.4rem;border-radius:10px;font-size:.82rem;font-weight:700;font-family:inherit;
+      cursor:pointer;border:none;transition:all .25s;display:inline-flex;align-items:center;gap:.5rem;
+      background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;
+      box-shadow:0 4px 14px rgba(16,185,129,.2)}
+    .generate-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(16,185,129,.3)}
+    .generate-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+    .generate-btn .btn-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.35);
+      border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none}
+    .generate-btn.loading .btn-spinner{display:inline-block}
+    .generate-btn.loading .btn-label{opacity:.6}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .insight-results{margin-top:1.25rem;display:none}
+    .insight-meta{font-size:.68rem;color:var(--text-tertiary);margin-bottom:.9rem;display:flex;align-items:center;gap:.5rem}
+    .insight-meta-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+
+    .insight-section{margin-bottom:1rem;padding:1.1rem 1.25rem;border-radius:14px;
+      background:var(--bg-card);border:1px solid var(--glass-border);
+      backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur))}
+    .insight-section-title{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.7px;
+      margin-bottom:.65rem;display:flex;align-items:center;gap:.4rem}
+    .insight-section-body{font-size:.84rem;line-height:1.78;color:var(--text-primary)}
+    .insight-section-body ol,.insight-section-body ul{padding-left:1.3rem;margin:.25rem 0}
+    .insight-section-body li{margin-bottom:.35rem}
+    .insight-section-body strong{color:var(--text-primary);font-weight:700}
+
+    .insight-exec  .insight-section-title{color:var(--accent)}
+    .insight-exec  {border-left:3px solid var(--accent)}
+    .insight-health .insight-section-title{color:var(--accent-blue)}
+    .insight-health{border-left:3px solid var(--accent-blue)}
+    .insight-risk  .insight-section-title{color:var(--accent-red)}
+    .insight-risk  {border-left:3px solid var(--accent-red)}
+    .insight-perf  .insight-section-title{color:var(--accent-purple)}
+    .insight-perf  {border-left:3px solid var(--accent-purple)}
+    .insight-actions .insight-section-title{color:var(--accent-orange)}
+    .insight-actions{border-left:3px solid var(--accent-orange)}
+
+    .insight-error{padding:1rem 1.25rem;border-radius:12px;background:rgba(239,68,68,.05);
+      border:1px solid rgba(239,68,68,.15);color:var(--accent-red);font-size:.82rem;display:none}
+
     /* ══ PRINT ══ */
     @media print{
       body{background:#fff!important;color:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -358,6 +423,7 @@
         <button class="period-btn" data-period="uptodate">All</button>
       </div>
       <button class="ctrl-btn ctrl-glass" onclick="loadAll()"><div class="status-dot" id="statusDot"></div> Refresh</button>
+      <button class="insights-tab-btn" id="insightsTabBtn" onclick="toggleInsights()">✦ Insights</button>
       <button class="ctrl-btn ctrl-glass" onclick="window.print()">Print</button>
       <div class="theme-toggle ctrl-glass" id="themeToggle" title="Toggle light / dark mode"></div>
     </div>
@@ -365,6 +431,62 @@
 
   <!-- ══ SIGNATURE ══ -->
   <div class="vvv-signature" id="vvvSignature">veni vidi vici</div>
+
+  <!-- ══ INSIGHTS PANEL ══ -->
+  <div id="insightsPanel">
+    <div class="chart-card glass" style="margin-bottom:1rem">
+      <div class="insights-header">
+        <div>
+          <div class="insights-title">
+            <span class="insights-spark">✦</span> AI Portfolio Insights
+          </div>
+          <div class="insights-subtitle">Powered by Claude · Data-driven analysis for management decisions</div>
+        </div>
+        <button class="ctrl-btn ctrl-glass" onclick="toggleInsights()" style="font-size:.72rem">← Back to Dashboard</button>
+      </div>
+
+      <label class="context-label" for="insightContext">Add context <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional — helps the AI give more relevant advice)</span></label>
+      <textarea id="insightContext" class="context-area"
+        placeholder="e.g. 'We ran a collections drive last week' · 'Kampala branch has new management since January' · 'We are planning to expand to 2 new districts next quarter' · 'December repayments were disrupted by holidays'"></textarea>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.85rem;flex-wrap:wrap;gap:.5rem">
+        <button class="generate-btn" id="generateBtn" onclick="generateInsights()">
+          <div class="btn-spinner"></div>
+          <span class="btn-label">Generate Insights</span>
+        </button>
+        <span id="insightPeriodLabel" style="font-size:.7rem;color:var(--text-tertiary)"></span>
+      </div>
+    </div>
+
+    <div class="insight-error" id="insightError"></div>
+
+    <div class="insight-results" id="insightResults">
+      <div class="insight-meta">
+        <div class="insight-meta-dot"></div>
+        <span id="insightMeta">Generated just now</span>
+      </div>
+      <div class="insight-section insight-exec">
+        <div class="insight-section-title">📊 Executive Summary</div>
+        <div class="insight-section-body" id="insightExec"></div>
+      </div>
+      <div class="insight-section insight-health">
+        <div class="insight-section-title">💼 Portfolio Health</div>
+        <div class="insight-section-body" id="insightHealth"></div>
+      </div>
+      <div class="insight-section insight-risk">
+        <div class="insight-section-title">⚠ Risk Flags</div>
+        <div class="insight-section-body" id="insightRisk"></div>
+      </div>
+      <div class="insight-section insight-perf">
+        <div class="insight-section-title">🏆 Performance Highlights</div>
+        <div class="insight-section-body" id="insightPerf"></div>
+      </div>
+      <div class="insight-section insight-actions">
+        <div class="insight-section-title">✅ Recommended Actions</div>
+        <div class="insight-section-body" id="insightActions"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- ══ KPI CARDS ══ -->
   <div class="metrics-grid" id="kpiGrid">
@@ -892,6 +1014,100 @@ async function loadAll(){
   document.getElementById('lastUpdate').textContent='Updated: '+new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   document.getElementById('printDate').textContent='Generated: '+new Date().toLocaleString();
   setTimeout(()=>setLoading(0),800)}
+
+/* ══ INSIGHTS ══ */
+let insightsOpen = false;
+
+function toggleInsights() {
+  insightsOpen = !insightsOpen;
+  const panel   = document.getElementById('insightsPanel');
+  const dash    = document.getElementById('dashboardContent');
+  const btn     = document.getElementById('insightsTabBtn');
+  const kpiGrid = document.getElementById('kpiGrid');
+  // collect all sections below the insights panel
+  const dashSections = document.querySelectorAll('.metrics-grid, .charts-row, .table-card, .vvv-signature');
+
+  if (insightsOpen) {
+    panel.style.display = 'block';
+    dashSections.forEach(el => el.style.display = 'none');
+    btn.classList.add('active');
+    // update the period label inside the panel
+    const lbl = { today:'Today', week:'This Week', month:'This Month', quarter:'This Quarter', year:'This Year', uptodate:'All Time' }[currentPeriod] || currentPeriod;
+    const branch = currentBranch !== 'all' ? ` · ${document.getElementById('branchFilter').selectedOptions[0]?.text || ''}` : '';
+    document.getElementById('insightPeriodLabel').textContent = `Period: ${lbl}${branch}`;
+  } else {
+    panel.style.display = 'none';
+    dashSections.forEach(el => el.style.display = '');
+    btn.classList.remove('active');
+  }
+}
+
+function parseInsightSections(text) {
+  // Extract each ## section from the markdown response
+  const sections = {};
+  const matches = [...text.matchAll(/##\s+(.+?)\n([\s\S]*?)(?=\n##\s|$)/g)];
+  for (const m of matches) {
+    const title = m[1].trim().toLowerCase();
+    const body  = m[2].trim();
+    if (title.includes('executive'))  sections.exec    = body;
+    if (title.includes('health'))     sections.health  = body;
+    if (title.includes('risk'))       sections.risk    = body;
+    if (title.includes('highlight') || title.includes('performance')) sections.perf = body;
+    if (title.includes('action') || title.includes('recommend'))      sections.actions = body;
+  }
+  // fallback: if parsing fails, put everything in exec
+  if (Object.keys(sections).length === 0) sections.exec = text;
+  return sections;
+}
+
+function renderMarkdown(text) {
+  // Minimal markdown: bold, numbered lists, bullet lists, line breaks
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^(\d+)\.\s+/gm, '<li style="list-style:decimal">')
+    .replace(/^[-•]\s+/gm, '<li style="list-style:disc">')
+    .replace(/\n\n/g, '</p><p style="margin-top:.5rem">')
+    .replace(/\n/g, '<br>');
+}
+
+async function generateInsights() {
+  const btn     = document.getElementById('generateBtn');
+  const results = document.getElementById('insightResults');
+  const errEl   = document.getElementById('insightError');
+
+  btn.disabled = true;
+  btn.classList.add('loading');
+  results.style.display = 'none';
+  errEl.style.display   = 'none';
+
+  try {
+    const context = document.getElementById('insightContext').value.trim();
+    const r = await fetch(`${API_BASE}/api/nova/ai-insight`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ period: currentPeriod, branch: currentBranch, userContext: context })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'AI service error');
+
+    const sections = parseInsightSections(d.insight);
+    document.getElementById('insightExec').innerHTML    = renderMarkdown(sections.exec    || '—');
+    document.getElementById('insightHealth').innerHTML  = renderMarkdown(sections.health  || '—');
+    document.getElementById('insightRisk').innerHTML    = renderMarkdown(sections.risk    || '—');
+    document.getElementById('insightPerf').innerHTML    = renderMarkdown(sections.perf    || '—');
+    document.getElementById('insightActions').innerHTML = renderMarkdown(sections.actions || '—');
+
+    const ts = new Date(d.generatedAt || Date.now()).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    document.getElementById('insightMeta').textContent = `Generated at ${ts} · Period: ${d.period}`;
+    results.style.display = 'block';
+  } catch(e) {
+    errEl.textContent = '⚠ Could not generate insights — ' + e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+  }
+}
 
 /* ══ EVENTS ══ */
 document.querySelectorAll('.period-btn').forEach(b=>{b.addEventListener('click',()=>{
