@@ -1,0 +1,48 @@
+name: nova-performance-analytics
+region: blr
+
+services:
+  - name: final-dashboard-performance
+    source_dir: /
+    github:
+      repo: Chrl3y/Final_Dashboard_Performance
+      branch: main
+      deploy_on_push: true
+    run_command: npm start
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    http_port: 3000
+    health_check:
+      http_path: /health
+    envs:
+      - key: METABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: METABASE_SITE_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: METABASE_USERNAME
+        scope: RUN_TIME
+        type: SECRET
+      - key: METABASE_PASSWORD
+        scope: RUN_TIME
+        type: SECRET
+      - key: METABASE_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: SHEETS_COSTS_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: CIR_GREEN
+        scope: RUN_TIME
+        value: "70"
+      - key: CIR_AMBER
+        scope: RUN_TIME
+        value: "90"
+      - key: NOVA_DB_ID
+        scope: RUN_TIME
+        value: "2"
+      - key: PORT
+        scope: RUN_TIME
+        value: "3000"
