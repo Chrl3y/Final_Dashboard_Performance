@@ -3,16 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nova Loan Performance Dashboard</title>
+  <title>Nova Microfinance — Performance Intelligence Dashboard</title>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#10b981">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Nova Dashboard">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
 
-    /* ══════════════════════════════════════════════════
+    /* ==════════════════════════════════════════════════
        THEME SYSTEM — Dark (default) & Light
-       ══════════════════════════════════════════════════ */
+       ════════════════════════════════════════════════== */
     :root,[data-theme="dark"]{
+      --ui-scale:0.8;
       --bg-primary:#0b0f14;
       --bg-secondary:#111820;
       --bg-card:rgba(16,24,32,0.55);
@@ -61,15 +69,17 @@
       --dot-pattern:rgba(255,255,255,0.06);
     }
 
+    html{font-size:calc(16px * var(--ui-scale))}
     body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--text-primary);
-      line-height:1.6;transition:background .35s,color .35s;min-height:100vh}
+      line-height:1.6;transition:background .35s,color .35s;min-height:100vh;
+      -webkit-text-size-adjust:100%}
     body::before{content:'';position:fixed;inset:0;z-index:-1;
       background-image:radial-gradient(circle at 1px 1px,var(--dot-pattern) 1px,transparent 0);
       background-size:32px 32px;pointer-events:none}
 
-    .container{max-width:1800px;margin:0 auto;padding:1.25rem 1.5rem}
+    .container{max-width:calc(1800px * var(--ui-scale));margin:0 auto;padding:1.25rem 1.5rem}
 
-    /* ══ GLASS BASE ══ */
+    /* == GLASS BASE == */
     .glass{
       background:var(--bg-card);
       backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));
@@ -80,22 +90,106 @@
       overflow:hidden;
       transition:all .3s ease;
     }
+    .metric-card.glass,.chart-card.glass,.table-card.glass{overflow:visible}
+    .metric-card.glass.popover-open,.chart-card.glass.popover-open,.table-card.glass.popover-open{z-index:100}
+    .chart-card .explain-btn,.table-card .explain-btn{bottom:auto;top:.7rem;right:.7rem}
+
+    /* Floating side panel: positioned next to the card, outside it */
+    .side-explain-panel{position:fixed;z-index:200;width:340px;
+      border-radius:16px;padding:1rem 1.1rem;
+      background:rgba(14,20,28,.88);
+      backdrop-filter:blur(90px) saturate(1.9) brightness(1.05);-webkit-backdrop-filter:blur(90px) saturate(1.9) brightness(1.05);
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow:0 8px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.1),inset 0 0 80px rgba(16,185,129,.015);
+      font-size:.8rem;line-height:1.7;color:var(--text-primary);
+      overflow-y:auto;max-height:80vh;
+      animation:sidePanelIn .2s ease;
+      transition:width .25s ease,max-height .25s ease}
+    .side-explain-panel::before{content:'';position:absolute;inset:0;border-radius:inherit;
+      background:linear-gradient(135deg,rgba(255,255,255,.06) 0%,rgba(255,255,255,.02) 40%,transparent 100%);
+      pointer-events:none;z-index:-1}
+    .side-explain-panel::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);
+      border-radius:inherit;pointer-events:none}
+    @keyframes sidePanelIn{from{opacity:0;transform:translateX(-8px) scale(.97)}to{opacity:1;transform:translateX(0) scale(1)}}
+    .side-explain-panel.from-right{animation-name:sidePanelInRight}
+    @keyframes sidePanelInRight{from{opacity:0;transform:translateX(8px) scale(.97)}to{opacity:1;transform:translateX(0) scale(1)}}
+    .side-explain-panel.deep-dive{width:440px}
+    [data-theme="light"] .side-explain-panel{
+      background:rgba(255,255,255,.75);border-color:rgba(16,185,129,.2);
+      box-shadow:0 8px 32px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.7)}
     .glass::after{content:'';position:absolute;inset:0;background:var(--glass-shine);pointer-events:none;border-radius:inherit}
     .glass:hover{border-color:var(--glass-border-hover);background:var(--bg-card-hover);
       box-shadow:var(--glass-shadow),0 0 0 1px var(--glass-border-hover)}
 
-    /* ══ HEADER ══ */
-    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.75rem;
-      padding-bottom:1.25rem;border-bottom:1px solid var(--border-color);flex-wrap:wrap;gap:1rem}
-    .header-main{flex:1;min-width:260px}
-    .header-brand{display:flex;align-items:center;gap:.55rem;margin-bottom:.3rem}
-    .header-logo{width:30px;height:30px;border-radius:8px;background:var(--accent);display:flex;align-items:center;
-      justify-content:center;font-weight:900;font-size:.75rem;color:#fff;box-shadow:0 2px 8px rgba(16,185,129,.25)}
-    .header-main h1{font-size:1.5rem;font-weight:800;letter-spacing:-.5px;
+    /* == HEADER == */
+    .header{display:flex;flex-direction:column;margin-bottom:1.75rem;
+      padding-bottom:1.25rem;border-bottom:1px solid var(--border-color);gap:.9rem}
+    .header-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.8rem}
+    .header-main{flex:1;min-width:200px}
+    .header-brand{display:flex;align-items:flex-start;gap:.55rem;margin-bottom:.3rem;padding-left:0}
+    .header-logo{width:calc(34px * var(--ui-scale));height:calc(34px * var(--ui-scale));border-radius:calc(9px * var(--ui-scale));background:var(--accent);display:flex;align-items:center;
+      justify-content:center;font-weight:900;font-size:.82rem;color:#fff;box-shadow:0 2px 8px rgba(16,185,129,.25);margin-top:.08rem}
+    .header-main h1{font-family:'Inter',sans-serif;font-size:1.65rem;font-weight:800;letter-spacing:-.5px;line-height:1.2;
       background:linear-gradient(135deg,var(--accent-light),var(--accent));
       -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-    .header-main p{color:var(--text-secondary);font-size:.78rem}
-    .header-controls{display:flex;gap:.55rem;flex-wrap:wrap;align-items:center}
+    .header-tagline{font-family:'Inter',sans-serif;color:var(--text-secondary);font-size:.76rem;font-weight:500;margin-top:.2rem;letter-spacing:.01em}
+    .header-text-block{display:flex;flex-direction:column;justify-content:flex-start}
+    .header-update{font-family:'Inter',sans-serif;color:var(--text-tertiary);font-size:.66rem;margin-top:.15rem}
+    .header-actions{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    /* Period + rolling row — centred, symmetric */
+    .header-controls{display:flex;flex-direction:column;gap:.45rem}
+    .period-row{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;justify-content:center}
+    .period-group-label-inline{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+      color:var(--text-tertiary);white-space:nowrap}
+
+    .date-range{display:none;align-items:center;gap:.45rem;padding:.35rem .5rem;border-radius:10px}
+    .date-range input{background:transparent;border:none;color:var(--text-secondary);font-size:.72rem}
+    .date-range input:focus{outline:none}
+    .date-range span{color:var(--text-tertiary);font-size:.7rem}
+    .date-range.show{display:flex}
+    .ctrl-btn.small{padding:.35rem .6rem;font-size:.7rem}
+
+    .alert-banner{display:none;align-items:center;justify-content:space-between;gap:.6rem;
+      background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.35);color:#fecaca;
+      padding:.55rem .75rem;border-radius:12px;margin:0 0 1rem}
+    .alert-banner.show{display:flex}
+    .alert-banner strong{color:#fee2e2}
+    .alert-banner button{background:transparent;border:1px solid rgba(239,68,68,.45);color:#fee2e2;
+      padding:.25rem .5rem;border-radius:8px;font-size:.7rem;cursor:pointer}
+
+    .table-card .row-click{cursor:pointer}
+    .table-card .row-click:hover{background:var(--surface-overlay)}
+
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.6);display:none;align-items:center;justify-content:center;z-index:200}
+    .modal-backdrop.show{display:flex}
+    .modal{width:min(92vw,900px);background:var(--bg-card-solid);border:1px solid var(--border-color);
+      border-radius:16px;box-shadow:var(--glass-shadow);padding:1rem}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem}
+    .modal-title{font-size:1rem;font-weight:700}
+    .modal-close{background:transparent;border:1px solid var(--border-color);color:var(--text-secondary);
+      padding:.25rem .55rem;border-radius:8px;cursor:pointer}
+    .modal-table{width:100%;border-collapse:collapse;font-size:.8rem}
+    .modal-table th,.modal-table td{border-bottom:1px solid var(--border-color);padding:.5rem .4rem;text-align:left}
+    .modal-table th{color:var(--text-secondary);font-weight:600}
+
+    /* == VALUE TICKER == */
+    .value-panel{margin:1.6rem 0 1.2rem;padding:1rem .9rem;overflow:hidden}
+    .value-header{display:flex;justify-content:space-between;align-items:center;gap:.8rem;flex-wrap:wrap;margin-bottom:.5rem;padding:0 .4rem}
+    .value-title{font-size:.95rem;font-weight:800;letter-spacing:-.2px}
+    .value-sub{font-size:.75rem;color:var(--text-secondary)}
+    .value-track{position:relative;overflow:hidden}
+    .value-rail{display:flex;gap:1rem;align-items:center;white-space:nowrap;will-change:transform;animation:value-scroll 28s linear infinite}
+    .value-list{display:flex;gap:1rem;align-items:center;list-style:none;padding:0;margin:0}
+    .value-item{display:flex;align-items:center;gap:.45rem;padding:.45rem .7rem;border-radius:999px;border:1px solid var(--border-color);
+      background:var(--surface-overlay);font-size:.72rem;color:var(--text-secondary)}
+    .value-item::before{content:'◆';font-family:'Inter',sans-serif;
+      color:var(--accent);font-weight:700;letter-spacing:.12em}
+    @keyframes value-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    @media (prefers-reduced-motion: reduce){
+      .value-rail{animation:none;flex-wrap:wrap;white-space:normal}
+      .value-list{flex-wrap:wrap}
+    }
 
     /* Control elements shared style */
     .ctrl-glass{background:var(--bg-card);backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));
@@ -107,6 +201,12 @@
       font-size:.72rem;font-weight:600;transition:all .2s;font-family:inherit;white-space:nowrap}
     .period-btn:hover{background:var(--accent-glow);color:var(--accent-light)}
     .period-btn.active{background:var(--accent);color:#fff}
+    .period-group-wrap{display:flex;flex-direction:column;gap:.3rem}
+    .period-group-label{font-size:.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+      color:var(--text-tertiary);padding-left:.2rem}
+    .period-mode-toggle{padding:.4rem .7rem;border-radius:10px;font-size:.68rem;font-weight:700;
+      cursor:pointer;font-family:inherit;color:var(--accent-cyan);white-space:nowrap;transition:all .18s}
+    .period-mode-toggle:hover{color:var(--accent-light);border-color:var(--accent-cyan)}
 
     .ctrl-btn{padding:.4rem .8rem;border-radius:10px;color:var(--text-secondary);cursor:pointer;
       font-size:.78rem;font-family:inherit;display:inline-flex;align-items:center;gap:.35rem;font-weight:600}
@@ -115,12 +215,12 @@
     .loading-bar{height:3px;background:var(--bg-secondary);position:sticky;top:0;z-index:100;overflow:hidden}
     .loading-bar-fill{height:100%;width:0;background:var(--loading-grad);transition:width .3s;border-radius:2px}
 
-    /* ══ THEME TOGGLE ══ */
+    /* == THEME TOGGLE == */
     .theme-toggle{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;
       cursor:pointer;font-size:.95rem;transition:all .2s}
     .theme-toggle:hover{transform:rotate(20deg)}
 
-    /* ══ BRANCH FILTER ══ */
+    /* == BRANCH FILTER == */
     .branch-filter{position:relative;display:flex;align-items:center;gap:.3rem}
     .branch-filter select{padding:.4rem 1.8rem .4rem .65rem;border-radius:10px;color:var(--text-secondary);
       font-size:.72rem;font-family:inherit;cursor:pointer;appearance:none;-webkit-appearance:none;font-weight:600;
@@ -135,8 +235,8 @@
       display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;font-family:inherit}
     .branch-clear-btn:hover{border-color:var(--accent-red);color:var(--accent-red);background:rgba(239,68,68,.08)}
 
-    /* ══ KPI CARDS ══ */
-    .metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:1rem;margin-bottom:1.75rem}
+    /* == KPI CARDS == */
+    .metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(calc(215px * var(--ui-scale)),1fr));gap:1rem;margin-bottom:1.75rem}
     .metric-card{padding:1.1rem 1.15rem;cursor:grab;position:relative}
     .metric-card.dragging{opacity:.4;transform:scale(.96);cursor:grabbing}
     .metric-card.drag-over{border-color:var(--accent)!important;
@@ -171,7 +271,7 @@
     .par-warning{background:rgba(245,158,11,.1);color:var(--accent-orange);border:1px solid rgba(245,158,11,.18)}
     .par-danger{background:rgba(239,68,68,.1);color:var(--accent-red);border:1px solid rgba(239,68,68,.18)}
 
-    /* ══ CHARTS ══ */
+    /* == CHARTS == */
     .charts-row{display:grid;gap:1rem;margin-bottom:1rem}
     .charts-row.two-col{grid-template-columns:2fr 1fr}
     .charts-row.three-col{grid-template-columns:1fr 1fr 1fr}
@@ -180,14 +280,15 @@
     .chart-title{font-size:.92rem;font-weight:700}
     .chart-subtitle{font-size:.72rem;color:var(--text-secondary);margin-top:.12rem}
     .chart-container{position:relative}
-    .chart-container.h300{height:300px}
-    .chart-container.h250{height:250px}
-    .chart-container.h200{height:200px}
+    .chart-container.h300{height:calc(300px * var(--ui-scale))}
+    .chart-container.h250{height:calc(250px * var(--ui-scale))}
+    .chart-container.h200{height:calc(200px * var(--ui-scale))}
+    .chart-container canvas{cursor:pointer}
     .chart-legend{display:flex;gap:.8rem;flex-wrap:wrap;margin-top:.6rem}
     .legend-item{display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--text-secondary)}
     .legend-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
 
-    /* ══ TABLES ══ */
+    /* == TABLES == */
     .table-card{padding:1.25rem;margin-bottom:1rem}
     .table-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem}
     .table-title{font-size:.92rem;font-weight:700}
@@ -235,7 +336,7 @@
       background:var(--surface-overlay);border:1px solid var(--glass-border);transition:all .2s}
     .export-btn:hover{border-color:var(--glass-border-hover);color:var(--text-primary);background:var(--accent-glow)}
 
-    /* ══ GAUGE ══ */
+    /* == GAUGE == */
     .gauge-wrapper{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center}
     .gauge-center{position:absolute;top:55%;left:50%;transform:translate(-50%,-50%);text-align:center}
     .gauge-pct{font-size:2.1rem;font-weight:900;letter-spacing:-1px;font-variant-numeric:tabular-nums}
@@ -250,21 +351,21 @@
     .gauge-moderate{background:rgba(245,158,11,.1);color:var(--accent-orange);border:1px solid rgba(245,158,11,.18)}
     .gauge-low{background:rgba(239,68,68,.1);color:var(--accent-red);border:1px solid rgba(239,68,68,.18)}
 
-    /* ══ ARREARS ══ */
-    .arrears-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-top:.45rem}
+    /* == ARREARS == */
+    .arrears-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.65rem;margin-top:.45rem}
     .arrears-band{padding:.8rem;background:var(--surface-overlay);border-radius:10px;border:1px solid var(--border-color)}
     .arrears-label{font-size:.65rem;color:var(--text-secondary);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.25rem}
     .arrears-count{font-size:1.25rem;font-weight:800;margin-bottom:.1rem}
     .arrears-amount{font-size:.72rem;color:var(--text-tertiary)}
 
-    /* ══ DOW ══ */
+    /* == DOW == */
     .dow-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.35rem;margin-top:.55rem}
     .dow-cell{text-align:center;padding:.45rem .15rem;border-radius:8px;border:1px solid var(--border-color)}
     .dow-day{font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-secondary);margin-bottom:.15rem}
     .dow-value{font-size:.75rem;font-weight:800;margin-bottom:.08rem}
     .dow-sub{font-size:.55rem;color:var(--text-tertiary)}
 
-    /* ══ TOAST ══ */
+    /* == TOAST == */
     .toast-container{position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.35rem;pointer-events:none}
     .toast{padding:.6rem 1rem;border-radius:12px;font-size:.75rem;font-weight:600;font-family:inherit;
       pointer-events:auto;display:flex;align-items:center;gap:.4rem;max-width:340px;
@@ -276,13 +377,40 @@
     @keyframes toastIn{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
     @keyframes toastOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(60px)}}
 
-    /* ══ SECTION ERROR ══ */
+    /* == SECTION ERROR == */
     .section-error{padding:1.5rem;text-align:center;border-radius:10px;background:rgba(239,68,68,.03);border:1px solid rgba(239,68,68,.1)}
     .section-error-text{color:var(--accent-red);font-size:.75rem;font-weight:600}
     .section-error-detail{color:var(--text-tertiary);font-size:.68rem;margin-top:.2rem}
     .empty-state{padding:1.5rem;text-align:center;color:var(--text-tertiary);font-size:.8rem}
 
-    /* ══ SIGNATURE ══ */
+    /* == METRICS TAB BAR == */
+    .metrics-tab-bar{display:flex;gap:.4rem;margin-bottom:1rem;align-items:center}
+    .metrics-tab-btn{padding:.35rem .9rem;border-radius:20px;border:1.5px solid var(--glass-border);
+      background:var(--bg-card);color:var(--text-secondary);cursor:pointer;font-size:.72rem;
+      font-family:inherit;font-weight:600;transition:all .18s}
+    .metrics-tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .metrics-tab-btn:not(.active):hover{border-color:var(--glass-border-hover);color:var(--accent-light)}
+    /* == METRICS GUIDE PANEL == */
+    .metrics-guide-panel{margin-bottom:1.75rem;animation:fadeIn .25s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .guide-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.85rem}
+    .guide-card{background:var(--bg-card);backdrop-filter:blur(var(--glass-blur));
+      -webkit-backdrop-filter:blur(var(--glass-blur));border:1.5px solid var(--glass-border);
+      border-radius:14px;padding:1rem 1.1rem;transition:transform .2s,box-shadow .2s}
+    .guide-card:hover{transform:translateY(-2px);box-shadow:var(--glass-shadow)}
+    .guide-icon{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
+      border-radius:9px;background:var(--icon-bg);color:var(--icon-color);font-weight:800;
+      font-size:.8rem;margin-bottom:.6rem}
+    .guide-title{font-size:.82rem;font-weight:700;color:var(--text-primary);margin-bottom:.4rem}
+    .guide-body{font-size:.72rem;color:var(--text-secondary);line-height:1.55;margin-bottom:.6rem}
+    .guide-formula{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.65rem;
+      color:var(--accent-light);background:var(--surface-overlay);padding:.3rem .5rem;
+      border-radius:6px;border-left:2px solid var(--accent);line-height:1.5}
+    [data-theme="light"] .guide-card{background:rgba(255,255,255,0.93);border-color:rgba(59,130,200,0.16);
+      box-shadow:0 2px 12px rgba(15,55,90,0.07)}
+    [data-theme="light"] .guide-formula{color:var(--accent-dark,#0f766e)}
+
+    /* == SIGNATURE == */
     .vvv-signature{
       text-align:right;font-size:.58rem;font-weight:600;letter-spacing:.35rem;
       text-transform:lowercase;margin-bottom:1.2rem;margin-top:-.8rem;
@@ -294,7 +422,248 @@
     }
     .vvv-signature:hover{opacity:.9}
 
-    /* ══ PRINT ══ */
+    /* == AI INSIGHTS PANEL == */
+    #insightsPanel{display:none}
+    .insights-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem}
+    .insights-title{font-size:1.1rem;font-weight:800;display:flex;align-items:center;gap:.5rem}
+    .insights-spark{background:linear-gradient(135deg,var(--accent),var(--accent-blue));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-size:1.2rem}
+    .insights-subtitle{font-size:.75rem;color:var(--text-secondary);margin-top:.2rem}
+    .context-area{width:100%;padding:.75rem 1rem;border-radius:12px;font-size:.82rem;font-family:inherit;
+      background:var(--bg-card);border:1px solid var(--glass-border);color:var(--text-primary);
+      resize:vertical;min-height:72px;transition:border-color .2s;line-height:1.6}
+    .context-area:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+    .context-area::placeholder{color:var(--text-tertiary)}
+    .context-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+      color:var(--text-secondary);margin-bottom:.4rem;display:block}
+    .generate-btn{padding:.55rem 1.4rem;border-radius:10px;font-size:.82rem;font-weight:700;font-family:inherit;
+      cursor:pointer;border:none;transition:all .25s;display:inline-flex;align-items:center;gap:.5rem;
+      background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;
+      box-shadow:0 4px 14px rgba(16,185,129,.2)}
+    .generate-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(16,185,129,.3)}
+    .generate-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+    .generate-btn .btn-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.35);
+      border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none}
+    .generate-btn.loading .btn-spinner{display:inline-block}
+    .generate-btn.loading .btn-label{opacity:.6}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .insight-results{margin-top:1.25rem;display:none}
+    .insight-meta{font-size:.68rem;color:var(--text-tertiary);margin-bottom:.9rem;display:flex;align-items:center;gap:.5rem}
+    .insight-meta-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+    .insight-section{margin-bottom:1rem;padding:1.1rem 1.25rem;border-radius:14px;
+      background:var(--bg-card);border:1px solid var(--glass-border);
+      backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur))}
+    .insight-section-title{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.7px;
+      margin-bottom:.65rem;display:flex;align-items:center;gap:.4rem}
+    .insight-section-body{font-size:.84rem;line-height:1.78;color:var(--text-primary)}
+    .insight-section-body ol,.insight-section-body ul{padding-left:1.3rem;margin:.25rem 0}
+    .insight-section-body li{margin-bottom:.35rem}
+    .insight-section-body strong{color:var(--text-primary);font-weight:700}
+    .insight-section-body table{border-radius:8px;overflow:hidden;background:var(--surface-overlay)}
+    .insight-section-body table tr:nth-child(even){background:var(--table-stripe)}
+    .insight-section-body table tr:hover{background:var(--surface-overlay)}
+    .insight-exec .insight-section-title{color:var(--accent)}
+    .insight-exec{border-left:3px solid var(--accent)}
+    .insight-health .insight-section-title{color:var(--accent-blue)}
+    .insight-health{border-left:3px solid var(--accent-blue)}
+    .insight-risk .insight-section-title{color:var(--accent-red)}
+    .insight-risk{border-left:3px solid var(--accent-red)}
+    .insight-perf .insight-section-title{color:var(--accent-purple)}
+    .insight-perf{border-left:3px solid var(--accent-purple)}
+    .insight-actions .insight-section-title{color:var(--accent-orange)}
+    .insight-actions{border-left:3px solid var(--accent-orange)}
+    .insight-error{padding:1rem 1.25rem;border-radius:12px;background:rgba(239,68,68,.05);
+      border:1px solid rgba(239,68,68,.15);color:var(--accent-red);font-size:.82rem;display:none}
+    .insight-followup{margin-top:1rem;display:flex;gap:.5rem;align-items:center}
+    .insight-followup input{flex:1;padding:.5rem .8rem;border-radius:10px;border:1px solid var(--glass-border);
+      background:var(--bg-card);color:var(--text-primary);font-size:.8rem;font-family:inherit}
+    .insight-followup input:focus{outline:none;border-color:var(--accent)}
+    .insight-followup-answer{margin-top:.8rem;padding:1rem;border-radius:12px;background:var(--bg-card);
+      border:1px solid var(--glass-border);font-size:.84rem;line-height:1.7;color:var(--text-primary)}
+    .insight-actions-bar{display:flex;gap:.4rem;margin-top:.8rem}
+    .insight-actions-bar button{padding:.3rem .7rem;border-radius:8px;border:1px solid var(--glass-border);
+      background:var(--bg-card);color:var(--text-secondary);cursor:pointer;font-size:.68rem;
+      font-family:inherit;font-weight:600;transition:all .18s}
+    .insight-actions-bar button:hover{border-color:var(--accent);color:var(--accent)}
+
+    /* == KPI EXPLAIN POPOVER == */
+    .explain-btn{position:absolute;bottom:.5rem;right:.5rem;width:28px;height:28px;border-radius:999px;
+      border:1px solid rgba(16,185,160,.35);background:rgba(16,185,160,.12);color:rgba(16,185,160,.9);
+      cursor:pointer;font-size:.7rem;font-weight:700;font-family:inherit;display:inline-flex;align-items:center;
+      justify-content:center;gap:6px;padding:0 6px;overflow:hidden;white-space:nowrap;opacity:0;
+      box-shadow:0 0 6px rgba(16,185,160,.2);transition:all .15s;z-index:2}
+    .explain-btn::before{content:'Explain';font-size:.6rem;font-weight:600;letter-spacing:.02em;
+      opacity:0;width:0;overflow:hidden;transform:translateX(-4px);transition:opacity .15s ease,transform .15s ease,width .15s ease}
+    .metric-card:hover .explain-btn,.chart-card:hover .explain-btn,.table-card:hover .explain-btn{opacity:1}
+    .explain-btn:hover{opacity:1!important;border-color:rgba(16,185,160,.55);color:#fff;background:rgba(16,185,160,.25);
+      box-shadow:0 0 10px rgba(16,185,160,.35);width:88px;justify-content:flex-start;padding-left:8px;padding-right:8px}
+    .explain-btn:hover::before{opacity:1;width:auto;transform:translateX(0)}
+    .explain-btn.loading{opacity:1;pointer-events:none;width:24px!important;justify-content:center;padding:0}
+    .explain-btn.loading::before{opacity:0}
+    .explain-btn.loading::after{content:'';width:10px;height:10px;border:1.5px solid var(--accent);
+      border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite}
+    /* AI Insights button glow */
+    .ai-glow-btn{position:relative;border-color:var(--accent)!important;color:var(--accent)!important;
+      box-shadow:0 0 8px rgba(16,185,129,.25),0 0 20px rgba(16,185,129,.1);
+      animation:aiGlow 2.5s ease-in-out infinite}
+    @keyframes aiGlow{0%,100%{box-shadow:0 0 8px rgba(16,185,129,.25),0 0 20px rgba(16,185,129,.1)}
+      50%{box-shadow:0 0 14px rgba(16,185,129,.45),0 0 32px rgba(16,185,129,.2)}}
+    .ai-glow-btn::before{content:'';position:absolute;inset:-1px;border-radius:inherit;
+      background:linear-gradient(135deg,rgba(16,185,129,.15),transparent 60%);pointer-events:none;z-index:0}
+
+    /* KPI Explain popover — Apple frosted glass */
+    .kpi-popover{position:absolute;top:100%;left:-1px;right:-1px;z-index:50;margin-top:.5rem;padding:1rem 1.1rem;
+      border-radius:16px;
+      background:rgba(14,20,28,.88);
+      backdrop-filter:blur(90px) saturate(1.9) brightness(1.05);-webkit-backdrop-filter:blur(90px) saturate(1.9) brightness(1.05);
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow:0 8px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.1),inset 0 0 80px rgba(16,185,129,.015);
+      font-size:.8rem;line-height:1.7;color:var(--text-primary);
+      animation:popoverIn .15s ease;overflow:visible;
+      transition:all .2s cubic-bezier(.4,0,.2,1);will-change:transform,opacity,left,right}
+    .kpi-popover::before{content:'';position:absolute;inset:0;border-radius:inherit;
+      background:linear-gradient(135deg,rgba(255,255,255,.06) 0%,rgba(255,255,255,.02) 40%,transparent 100%);
+      pointer-events:none;z-index:-1}
+    .kpi-popover::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);
+      border-radius:inherit;pointer-events:none}
+    @keyframes popoverIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+    /* Light theme frost */
+    [data-theme="light"] .kpi-popover{
+      background:rgba(255,255,255,.75);
+      border-color:rgba(16,185,129,.2);
+      box-shadow:0 8px 32px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.7);
+      color:var(--text-primary)}
+    [data-theme="light"] .kpi-popover::before{
+      background:linear-gradient(135deg,rgba(255,255,255,.4) 0%,rgba(255,255,255,.1) 100%)}
+    [data-theme="light"] .kpi-popover::after{
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent)}
+    /* Expanded state for AI deep dive — grows in-place, positioned by JS */
+    .kpi-popover.expanded{
+      max-height:70vh;overflow-y:auto;
+      padding:1.2rem 1.4rem;
+      background:rgba(14,20,28,.92);
+      backdrop-filter:blur(90px) saturate(1.9) brightness(1.05);-webkit-backdrop-filter:blur(90px) saturate(1.9) brightness(1.05);
+      box-shadow:0 16px 48px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.12)}
+    [data-theme="light"] .kpi-popover.expanded{background:rgba(255,255,255,.85)}
+    /* Click-catcher overlay (no blur — blur is per-element) */
+    .page-blur-overlay{position:fixed;inset:0;z-index:99;
+      background:rgba(0,0,0,.18);
+      transition:opacity .25s ease;pointer-events:auto}
+    .popover-open{z-index:100!important}
+    .above-blur{position:relative;z-index:100!important}
+    /* Per-element blur: applied to siblings, NOT the source card */
+    .deep-blur{filter:blur(3px) brightness(.7);opacity:.6;pointer-events:none;
+      transition:filter .25s ease,opacity .25s ease}
+    .kpi-popover-title{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.6px;
+      color:var(--accent);margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem}
+    .kpi-popover-title::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);
+      box-shadow:0 0 6px var(--accent)}
+    .kpi-popover-close{position:absolute;top:.5rem;right:.5rem;width:20px;height:20px;border-radius:50%;
+      border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.08);color:var(--text-secondary);cursor:pointer;
+      font-size:.6rem;display:flex;align-items:center;justify-content:center;z-index:1;transition:all .15s;
+      backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+    .kpi-popover-close:hover{color:#fff;border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.2)}
+
+    /* == AI QUERY CONSOLE == */
+    .ai-query-input-row{display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem}
+    .ai-query-input{flex:1;padding:.55rem .9rem;border-radius:10px;border:1px solid var(--glass-border);
+      background:var(--bg-card);color:var(--text-primary);font-size:.82rem;font-family:inherit}
+    .ai-query-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+    .ai-query-chips{display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.8rem}
+    .ai-query-chip{padding:.3rem .6rem;border-radius:8px;border:1px solid var(--glass-border);
+      background:var(--bg-card);color:var(--text-secondary);cursor:pointer;font-size:.68rem;
+      font-family:inherit;transition:all .18s}
+    .ai-query-chip:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+    .ai-query-summary{padding:.9rem 1rem;border-radius:12px;background:var(--bg-card);
+      border:1px solid var(--glass-border);font-size:.82rem;line-height:1.7;color:var(--text-primary);margin-bottom:.8rem}
+    .ai-query-sql{margin-bottom:.8rem}
+    .ai-query-sql summary{font-size:.7rem;color:var(--text-secondary);cursor:pointer;font-weight:600}
+    .ai-query-sql pre{margin-top:.3rem;padding:.6rem;border-radius:8px;background:rgba(0,0,0,.2);
+      color:var(--accent-light);font-size:.72rem;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+    /* == PRINT == */
+    /* == LOADER OVERLAY — Nova Concept A == */
+    .loader-overlay{
+      position:fixed;inset:0;z-index:9998;background:#0b0f14;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      transition:opacity .6s ease .2s,visibility .6s ease .2s;padding:40px 24px 20px;
+      min-height:100vh;min-width:100vw;
+    }
+    .loader-overlay.hidden{opacity:0;visibility:hidden;pointer-events:none}
+
+    /* Orb */
+    .loader-orb{transform:rotateZ(45deg);perspective:1000px;border-radius:50%;width:80px;height:80px;
+      color:#10b981;position:relative;margin-bottom:28px;
+      filter:drop-shadow(0 0 18px rgba(16,185,129,.6)) drop-shadow(0 0 36px rgba(0,0,0,.9))}
+    .loader-orb:before,.loader-orb:after{content:'';display:block;position:absolute;top:0;left:0;
+      width:inherit;height:inherit;border-radius:50%;transform:rotateX(70deg);
+      animation:.8s loaderSpin linear infinite}
+    .loader-orb:after{color:#059669;transform:rotateY(70deg);animation-delay:.3s}
+    @keyframes loaderSpin{
+      0%,100%{box-shadow:.2em 0 0 0 currentcolor}12%{box-shadow:.2em .2em 0 0 currentcolor}
+      25%{box-shadow:0 .2em 0 0 currentcolor}37%{box-shadow:-.2em .2em 0 0 currentcolor}
+      50%{box-shadow:-.2em 0 0 0 currentcolor}62%{box-shadow:-.2em -.2em 0 0 currentcolor}
+      75%{box-shadow:0 -.2em 0 0 currentcolor}87%{box-shadow:.2em -.2em 0 0 currentcolor}
+    }
+    /* Brand text */
+    .loader-brand{font-size:32px;font-weight:800;letter-spacing:-.03em;color:#10b981;margin-bottom:5px;
+      opacity:0;animation:loaderFi .4s ease .05s forwards}
+    .loader-sub{font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
+      color:#334155;margin-bottom:32px;opacity:0;animation:loaderFi .4s ease .2s forwards}
+    @keyframes loaderFi{to{opacity:1}}
+    @keyframes loaderUp{to{opacity:1;transform:translateY(0)}}
+    /* Chips */
+    .loader-chips{display:flex;flex-direction:column;gap:14px;margin-bottom:26px;align-items:center}
+    .loader-chip-row{display:flex;gap:18px;justify-content:center}
+    .loader-chip{display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0;
+      transform:translateY(6px);animation:loaderUp .35s ease forwards;width:62px}
+    .loader-chip-row.lr1 .loader-chip:nth-child(1){animation-delay:.16s}
+    .loader-chip-row.lr1 .loader-chip:nth-child(2){animation-delay:.28s}
+    .loader-chip-row.lr1 .loader-chip:nth-child(3){animation-delay:.40s}
+    .loader-chip-row.lr2 .loader-chip:nth-child(1){animation-delay:.52s}
+    .loader-chip-row.lr2 .loader-chip:nth-child(2){animation-delay:.62s}
+    .loader-chip-row.lr2 .loader-chip:nth-child(3){animation-delay:.72s}
+    .loader-chip-row.lr2 .loader-chip:nth-child(4){animation-delay:.82s}
+    .loader-chip-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center}
+    .loader-chip-icon svg{width:20px;height:20px}
+    .loader-chip-label{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+      color:#475569;text-align:center;line-height:1.35}
+    /* Progress */
+    .loader-bar-wrap{width:420px;max-width:90vw;display:flex;flex-direction:column;align-items:center;gap:9px}
+    .loader-bar-track{width:100%;height:4px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+    .loader-bar-fill{height:100%;width:0%;border-radius:3px;
+      background:linear-gradient(90deg,#3b82f6,#06b6d4,#10b981)}
+    .loader-bar-label{font-size:8px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+      color:#10b981;animation:loaderGlow 1.4s ease-in-out infinite}
+    @keyframes loaderGlow{0%,100%{opacity:.3}50%{opacity:1}}
+    /* VVV inside loader */
+    .loader-vvv{font-size:8px;font-weight:700;letter-spacing:.42em;text-transform:lowercase;
+      background:linear-gradient(90deg,#7a5c1e,#c9922a,#f0c040,#d4a843,#c9922a,#7a5c1e);
+      background-size:250% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+      background-clip:text;animation:loaderGold 5s linear infinite;
+      opacity:.65;user-select:none;margin-top:auto;padding-top:16px}
+    @keyframes loaderGold{to{background-position:250% center}}
+
+    /* Refresh pill */
+    .loader-refresh{
+      position:fixed;top:1.1rem;left:50%;transform:translateX(-50%);z-index:9997;
+      display:flex;align-items:center;gap:.6rem;background:var(--bg-card);
+      border:1px solid rgba(240,192,64,.22);border-radius:20px;padding:.35rem .8rem .35rem .6rem;
+      backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+      box-shadow:var(--glass-shadow),0 0 12px rgba(0,0,0,.5);
+      opacity:0;visibility:hidden;transition:opacity .2s ease,visibility .2s ease;
+      font-size:.7rem;font-weight:600;color:var(--text-secondary);pointer-events:none;
+    }
+    .loader-refresh.visible{opacity:1;visibility:visible}
+    .loader-refresh .loader-mini{transform:rotateZ(45deg);perspective:1000px;border-radius:50%;
+      width:16px;height:16px;color:#f0c040;position:relative;flex-shrink:0;
+      filter:drop-shadow(0 0 4px rgba(240,192,64,.5))}
+    .loader-refresh .loader-mini:before,.loader-refresh .loader-mini:after{content:'';display:block;
+      position:absolute;top:0;left:0;width:inherit;height:inherit;border-radius:50%;
+      transform:rotateX(70deg);animation:.75s loaderSpin linear infinite}
+    .loader-refresh .loader-mini:after{color:#b8922a;transform:rotateY(70deg);animation-delay:.3s}
+
     @media print{
       body{background:#fff!important;color:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       body::before{display:none}
@@ -311,23 +680,191 @@
     }
     .print-header{display:none}
 
-    /* ══ RESPONSIVE ══ */
+    /* == RESPONSIVE == */
     @media(max-width:1200px){.charts-row.two-col,.charts-row.three-col{grid-template-columns:1fr}}
-    @media(max-width:768px){.metrics-grid{grid-template-columns:1fr 1fr}.header{flex-direction:column}.dow-grid{grid-template-columns:repeat(4,1fr)}}
-    @media(max-width:480px){.metrics-grid{grid-template-columns:1fr}.dow-grid{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:900px){
+      .metrics-grid{grid-template-columns:repeat(2,1fr)}
+      .table-container{overflow-x:auto}
+      table{min-width:640px}
+    }
+    @media(max-width:768px){
+      html{height:100%;overflow:hidden;overflow-x:hidden}
+      body{font-size:calc(14px * var(--ui-scale));height:100%;overflow:hidden;overflow-x:hidden;
+        position:fixed;width:100%;max-width:100vw;top:0;left:0}
+      .container{padding:.75rem;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
+        max-height:100vh;max-width:100vw;overscroll-behavior-y:contain;overscroll-behavior-x:none}
+      .metrics-grid{grid-template-columns:repeat(2,1fr);gap:.65rem}
+      .header-top{flex-direction:column;gap:.6rem}
+      .header-actions{width:100%;justify-content:flex-end}
+      .period-row{justify-content:center;flex-wrap:wrap}
+      .period-selector{overflow-x:visible;flex-wrap:wrap;gap:.35rem;justify-content:center;
+        border-radius:12px;padding:.4rem}
+      .period-btn{padding:.5rem .9rem;font-size:.75rem;border-radius:8px;flex:0 0 auto;
+        border:1px solid var(--glass-border)!important;background:var(--bg-card)}
+      .period-btn.active{border-color:var(--accent)!important;background:var(--accent);color:#fff}
+      .period-mode-toggle{border:1px solid var(--glass-border)!important}
+      .dow-grid{grid-template-columns:repeat(4,1fr)}
+      .metric-value{font-size:1.35rem}
+      .chart-card{padding:.85rem}
+      .charts-row{gap:.75rem}
+      .table-card{padding:.85rem}
+      .guide-grid{grid-template-columns:1fr 1fr}
+      /* Mobile: hide explain btn on KPI cards (whole card is tappable), keep on charts/tables */
+      .metric-card > .explain-btn{display:none!important}
+      .explain-btn{opacity:.85!important;width:34px;height:34px;font-size:.8rem;
+        border-color:rgba(16,185,160,.4);background:rgba(16,185,160,.15);color:rgba(16,185,160,1);
+        box-shadow:0 0 8px rgba(16,185,160,.25)}
+      /* Mobile: popovers fill card width */
+      .kpi-popover{left:-.5rem!important;right:-.5rem!important;width:auto!important;font-size:.78rem}
+      /* Mobile: expanded deep dive as near-fullscreen overlay */
+      .kpi-popover.expanded{position:fixed!important;left:.4rem!important;right:.4rem!important;top:1.5rem!important;
+        bottom:.5rem!important;max-height:none!important;border-radius:16px;z-index:101;
+        overflow-y:auto;-webkit-overflow-scrolling:touch}
+      /* Mobile: floating side panel becomes bottom sheet */
+      .side-explain-panel{left:.5rem!important;right:.5rem!important;width:auto!important;
+        bottom:.5rem!important;top:auto!important;max-height:55vh;border-radius:16px 16px 12px 12px}
+      .side-explain-panel.deep-dive{max-height:70vh;width:auto!important}
+      /* Insights panel mobile */
+      .context-area{min-height:54px;font-size:.78rem}
+      .insight-section{padding:.85rem 1rem}
+      .insight-followup{flex-direction:column}
+      .insight-followup input{width:100%}
+      .insights-header{flex-direction:column;align-items:flex-start}
+    }
+    @media(max-width:480px){
+      .container{padding:.5rem}
+      .metrics-grid{grid-template-columns:repeat(2,1fr);gap:.45rem}
+      .metric-card{padding:.7rem .75rem}
+      .dow-grid{grid-template-columns:repeat(3,1fr)}
+      .header-logo{width:26px;height:26px;font-size:.68rem}
+      .header-main h1{font-size:1.2rem}
+      .header-tagline{font-size:.65rem}
+      .period-btn{padding:.45rem .75rem;font-size:.72rem;flex:1 1 auto;text-align:center;min-width:0;
+        border:1px solid var(--glass-border)!important}
+      .period-mode-toggle{padding:.45rem .7rem;font-size:.72rem}
+      .period-selector{gap:.3rem;padding:.35rem}
+      .branch-filter select{max-width:120px;font-size:.7rem}
+      .metric-value{font-size:1.05rem}
+      .metric-title{font-size:.56rem;letter-spacing:.7px}
+      .metric-icon{width:26px;height:26px;font-size:.6rem}
+      .metric-sub{font-size:.62rem}
+      .metric-change{font-size:.6rem}
+      .metric-sparkline{height:22px}
+      .guide-grid{grid-template-columns:1fr}
+      .sort-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
+      .sort-tab{white-space:nowrap}
+      table{min-width:560px}
+      .loader-chip-row.lr1,.loader-chip-row.lr2{gap:12px}
+      .loader-chip{width:54px}
+      .loader-chip-label{font-size:7px}
+      /* Extra small: single column popovers */
+      .kpi-popover{font-size:.74rem;padding:.8rem .9rem}
+      .kpi-popover.expanded{left:.25rem!important;right:.25rem!important;top:.5rem!important;bottom:.5rem!important}
+      .explain-btn{width:32px;height:32px;font-size:.78rem}
+      /* AI insights mobile tweaks */
+      .generate-btn{width:100%;justify-content:center;padding:.6rem 1rem}
+      .insight-actions-bar{flex-wrap:wrap}
+    }
+
+    /* Touch-only devices: show explain buttons on charts/tables (KPI cards use tap-to-explain) */
+    @media(hover:none){
+      .chart-card .explain-btn,.table-card .explain-btn{opacity:.85!important;border-color:rgba(16,185,160,.4);
+        background:rgba(16,185,160,.15);color:rgba(16,185,160,1);box-shadow:0 0 8px rgba(16,185,160,.2)}
+      .glass:hover{border-color:var(--glass-border);background:var(--bg-card);box-shadow:var(--glass-shadow)}
+    }
 
     ::-webkit-scrollbar{width:5px;height:5px}
     ::-webkit-scrollbar-track{background:transparent}
     ::-webkit-scrollbar-thumb{background:var(--glass-border);border-radius:3px}
     ::-webkit-scrollbar-thumb:hover{background:var(--glass-border-hover)}
   </style>
-  <!-- Runtime config: override API_BASE for production -->
-  <script>
-    // Injected at build/deploy time by DigitalOcean or set via config.js
-    window.NOVA_API_BASE = window.NOVA_API_BASE || '';
-  </script>
 </head>
 <body>
+
+<div class="loader-overlay" id="loaderOverlay">
+  <div class="loader-orb"></div>
+  <div class="loader-brand">Nova Microfinance</div>
+  <div class="loader-sub">Performance Intelligence</div>
+
+  <div class="loader-chips">
+    <div class="loader-chip-row lr1">
+      <div class="loader-chip">
+        <div class="loader-chip-icon" style="background:rgba(16,185,129,.1)">
+          <svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="5" width="2.8" height="9.5" rx=".9" fill="#10b981"/><rect x="6.2" y="3" width="2.8" height="11.5" rx=".9" fill="#10b981"/><rect x="10.8" y=".8" width="2.8" height="13.7" rx=".9" fill="#34d399"/></svg>
+        </div>
+        <div class="loader-chip-label">Portfolio Oversight</div>
+      </div>
+      <div class="loader-chip">
+        <div class="loader-chip-icon" style="background:rgba(59,130,246,.1)">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M2 12 L5.5 8 L9 10 L14 4" stroke="#3b82f6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="13" width="14" height="1.4" rx=".7" fill="rgba(59,130,246,.2)"/><circle cx="9" cy="10" r="1.4" fill="#3b82f6"/></svg>
+        </div>
+        <div class="loader-chip-label">Data-Driven Decisions</div>
+      </div>
+      <div class="loader-chip">
+        <div class="loader-chip-icon" style="background:rgba(239,68,68,.1)">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M2 12 L5.5 7.5 L9 9.5 L14 2.5" stroke="#ef4444" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="14" cy="2.5" r="1.8" fill="#ef4444"/><path d="M11 6.2 L13.2 4.8M11 4.8 L13.2 6.2" stroke="#ef4444" stroke-width="1.1" stroke-linecap="round"/></svg>
+        </div>
+        <div class="loader-chip-label">AI Trend Detection</div>
+      </div>
+    </div>
+    <div class="loader-chip-row lr2">
+      <div class="loader-chip">
+        <div class="loader-chip-icon" style="background:rgba(245,158,11,.1)">
+          <svg viewBox="0 0 16 16" fill="none"><circle cx="5.2" cy="5.2" r="3.4" stroke="#f59e0b" stroke-width="1.4" fill="none"/><circle cx="11" cy="11" r="3.4" stroke="#f59e0b" stroke-width="1.4" fill="none"/><path d="M8 5.2h2.2M5.2 8v2.2" stroke="#f59e0b" stroke-width="1.2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="loader-chip-label">Driver Analysis</div>
+      </div>
+      <div class="loader-chip">
+        <div class="loader-chip-icon" style="background:rgba(129,140,248,.1)">
+          <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#818cf8" stroke-width="1.3" fill="none"/><path d="M5.2 8 Q8 4.8 10.8 8 Q8 11.2 5.2 8Z" stroke="#818cf8" stroke-width="1.1" fill="rgba(129,140,248,.18)"/><circle cx="8" cy="8" r="1.3" fill="#818cf8"/></svg>
+        </div>
+        <div class="loader-chip-label">AI Insights</div>
+      </div>
+      <div class="loader-chip">
+        <div class="loader-chip-icon" style="background:rgba(6,182,212,.1)">
+          <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2.5" width="12" height="9" rx="1.6" stroke="#06b6d4" stroke-width="1.3" fill="none"/><path d="M4.5 6h7M4.5 8.2h5" stroke="#06b6d4" stroke-width="1.1" stroke-linecap="round"/><path d="M5.8 14 L8 11.5 L10.2 14" stroke="#06b6d4" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="loader-chip-label">Executive Summary</div>
+      </div>
+      <div class="loader-chip">
+        <div class="loader-chip-icon" style="background:rgba(139,92,246,.1)">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M2 11 L5.5 7.5 L9 9" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 9 L12 5.5 L14.5 3.5" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1.8 1.5"/><circle cx="14.5" cy="3.5" r="1.5" fill="#a78bfa" opacity=".8"/></svg>
+        </div>
+        <div class="loader-chip-label">Forecasting</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="loader-bar-wrap">
+    <div class="loader-bar-track"><div class="loader-bar-fill" id="loaderBarFill"></div></div>
+    <div class="loader-bar-label" id="loaderBarLabel">Connecting to Metabase…</div>
+  </div>
+  <div class="loader-vvv">veni · vidi · vici</div>
+</div>
+<script>
+// Loader bar animation — runs independently, fills over 3.5s
+(function(){
+  const bar=document.getElementById('loaderBarFill');
+  const lbl=document.getElementById('loaderBarLabel');
+  const msgs=['Connecting to Metabase…','Authenticating session…','Loading portfolio data…','Fetching branch metrics…','Running officer analysis…','Preparing insights…','Building dashboard…','Almost ready…','Dashboard ready.'];
+  let raf,start;
+  const dur=4500;
+  function ease(t){return t<.5?2*t*t:-1+(4-2*t)*t;}
+  function tick(ts){
+    if(!start)start=ts;
+    const raw=Math.min((ts-start)/dur,1);
+    const pct=(ease(raw)*95).toFixed(1); // only go to 95% — loadAll pushes to 100%
+    if(bar)bar.style.width=pct+'%';
+    if(lbl)lbl.textContent=msgs[Math.min(Math.floor(raw*(msgs.length-1)),msgs.length-2)];
+    if(raw<1)raf=requestAnimationFrame(tick);
+  }
+  raf=requestAnimationFrame(tick);
+})();
+</script>
+<div class="loader-refresh" id="loaderRefresh">
+  <div class="loader-mini"></div>
+  Refreshing...
+</div>
 
 <div class="toast-container" id="toastContainer"></div>
 <div class="loading-bar"><div class="loading-bar-fill" id="loadingBar"></div></div>
@@ -338,44 +875,248 @@
     <p style="color:#666;font-size:.85rem" id="printDate"></p>
   </div>
 
-  <!-- ══ HEADER ══ -->
+  <!-- == HEADER == -->
   <header class="header">
-    <div class="header-main">
-      <div class="header-brand">
-        <div class="header-logo">N</div>
-        <h1>Nova Performance</h1>
+    <!-- ROW 1: Brand left | utility buttons right -->
+    <div class="header-top">
+      <div class="header-main">
+        <div class="header-brand">
+          <div class="header-logo">N</div>
+          <div class="header-text-block">
+            <h1>Nova Microfinance</h1>
+            <div class="header-tagline">Performance Intelligence Dashboard &mdash; Real-time Metrics</div>
+            <p id="lastUpdate" class="header-update">Loading…</p>
+          </div>
+        </div>
       </div>
-      <p>Real-time metrics via Metabase &mdash; Nova MySQL</p>
-      <p id="lastUpdate" style="color:var(--text-tertiary);font-size:.72rem;margin-top:.15rem">Loading…</p>
+      <div class="header-actions">
+        <button class="ctrl-btn ctrl-glass" onclick="loadAll()"><div class="status-dot" id="statusDot"></div> Refresh</button>
+        <button class="ctrl-btn ctrl-glass ai-glow-btn" id="insightsTabBtn" onclick="toggleInsights()" style="font-weight:700">AI Insights</button>
+        <button class="ctrl-btn ctrl-glass" onclick="window.print()">Print</button>
+        <a class="ctrl-btn ctrl-glass" href="/mcp-ui.html" target="_blank" rel="noopener">Control UI</a>
+        <div class="theme-toggle ctrl-glass" id="themeToggle" title="Toggle light / dark mode"></div>
+      </div>
     </div>
+    <!-- ROW 2: Period selector + Branch — one symmetric row -->
     <div class="header-controls">
-      <div class="branch-filter">
-        <select id="branchFilter" title="Filter by branch"><option value="all">Branch</option></select>
-        <span class="branch-filter-arrow">▾</span>
-        <button class="branch-clear-btn" id="branchClearBtn" title="Clear branch filter" style="display:none">✕</button>
+      <div class="period-row">
+        <span class="period-group-label-inline" id="periodModeLabel">Calendar</span>
+        <div class="period-selector ctrl-glass" id="calPeriods" style="border-radius:10px">
+          <button class="period-btn" data-period="today">Today</button>
+          <button class="period-btn active" data-period="week">This Week</button>
+          <button class="period-btn" data-period="month">This Month</button>
+          <button class="period-btn" data-period="quarter">This Qtr</button>
+          <button class="period-btn" data-period="year">This Year</button>
+          <button class="period-btn" data-period="custom">Custom</button>
+          <button class="period-btn" data-period="uptodate">All</button>
+        </div>
+        <div class="period-selector ctrl-glass" id="rollingPeriods" style="border-radius:10px;display:none">
+          <button class="period-btn" data-period="rolling7">Last 7 Days</button>
+          <button class="period-btn" data-period="rolling30">Last 30 Days</button>
+          <button class="period-btn" data-period="rolling90">Last 90 Days</button>
+          <button class="period-btn" data-period="rolling12m">Last 12 Months</button>
+        </div>
+        <button class="period-mode-toggle ctrl-glass" id="periodModeToggle" onclick="togglePeriodMode()" title="Switch between calendar and rolling">⇄ Rolling</button>
+        <!-- Branch filter — same row, right side -->
+        <div class="branch-filter" style="margin-left:.4rem">
+          <select id="branchFilter" title="Filter by branch"><option value="all">All Branches</option></select>
+          <span class="branch-filter-arrow">▾</span>
+          <button class="branch-clear-btn" id="branchClearBtn" title="Clear branch filter" style="display:none">✕</button>
+        </div>
       </div>
-      <div class="period-selector ctrl-glass" style="border-radius:10px">
-        <button class="period-btn" data-period="today">Today</button>
-        <button class="period-btn active" data-period="week">Week</button>
-        <button class="period-btn" data-period="month">Month</button>
-        <button class="period-btn" data-period="quarter">Qtr</button>
-        <button class="period-btn" data-period="year">Year</button>
-        <button class="period-btn" data-period="uptodate">All</button>
+      <div class="date-range ctrl-glass" id="dateRange" style="justify-content:center">
+        <input type="date" id="dateStart"><span>to</span><input type="date" id="dateEnd">
+        <button class="ctrl-btn small" id="dateApply">Apply</button>
+        <button class="ctrl-btn small" id="dateClear">Clear</button>
       </div>
-      <button class="ctrl-btn ctrl-glass" onclick="loadAll()"><div class="status-dot" id="statusDot"></div> Refresh</button>
-      <button class="ctrl-btn ctrl-glass" onclick="window.print()">Print</button>
-      <div class="theme-toggle ctrl-glass" id="themeToggle" title="Toggle light / dark mode"></div>
     </div>
   </header>
 
-  <!-- ══ SIGNATURE ══ -->
+  <div class="alert-banner" id="parAlert">
+    <div><strong>PAR Alert:</strong> PAR30 is above 5%. Current rate: <span id="parAlertValue">—</span></div>
+    <button id="parAlertDismiss" type="button">Dismiss</button>
+  </div>
+
+  <!-- == SIGNATURE == -->
   <div class="vvv-signature" id="vvvSignature">veni vidi vici</div>
 
-  <!-- ══ KPI CARDS ══ -->
+  <!-- == AI INSIGHTS PANEL == -->
+  <div id="insightsPanel">
+    <div class="chart-card glass" style="margin-bottom:1rem">
+      <div class="insights-header">
+        <div>
+          <div class="insights-title"><span class="insights-spark">AI</span> Portfolio Insights</div>
+          <div class="insights-subtitle">Powered by Claude &middot; Data-driven analysis for management decisions</div>
+        </div>
+        <button class="ctrl-btn ctrl-glass" onclick="toggleInsights()" style="font-size:.72rem">Back to Dashboard</button>
+      </div>
+
+      <label class="context-label" for="insightContext">Add context <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional &mdash; helps the AI give more relevant advice)</span></label>
+      <textarea id="insightContext" class="context-area"
+        placeholder="e.g. 'We ran a collections drive last week' &middot; 'Kampala branch has new management since January' &middot; 'We are planning to expand to 2 new districts next quarter'"></textarea>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.85rem;flex-wrap:wrap;gap:.5rem">
+        <button class="generate-btn" id="generateBtn" onclick="generateInsights()">
+          <div class="btn-spinner"></div>
+          <span class="btn-label">Generate Insights</span>
+        </button>
+        <span id="insightPeriodLabel" style="font-size:.7rem;color:var(--text-tertiary)"></span>
+      </div>
+    </div>
+
+    <div class="insight-error" id="insightError"></div>
+
+    <div class="insight-results" id="insightResults">
+      <div class="insight-meta">
+        <div class="insight-meta-dot"></div>
+        <span id="insightMeta">Generated just now</span>
+      </div>
+      <div class="insight-section insight-exec">
+        <div class="insight-section-title">Executive Summary</div>
+        <div class="insight-section-body" id="insightExec"></div>
+      </div>
+      <div class="insight-section insight-health">
+        <div class="insight-section-title">Portfolio Health</div>
+        <div class="insight-section-body" id="insightHealth"></div>
+      </div>
+      <div class="insight-section insight-risk">
+        <div class="insight-section-title">Risk Flags</div>
+        <div class="insight-section-body" id="insightRisk"></div>
+      </div>
+      <div class="insight-section insight-perf">
+        <div class="insight-section-title">Performance Highlights</div>
+        <div class="insight-section-body" id="insightPerf"></div>
+      </div>
+      <div class="insight-section insight-actions">
+        <div class="insight-section-title">Recommended Actions</div>
+        <div class="insight-section-body" id="insightActions"></div>
+      </div>
+
+      <div class="insight-actions-bar">
+        <button onclick="copyInsight()">Copy to Clipboard</button>
+        <button onclick="exportInsight()">Export as Text</button>
+      </div>
+
+      <!-- Follow-up questions -->
+      <div class="insight-followup">
+        <input type="text" id="insightFollowup" placeholder="Ask a follow-up question about this briefing..." onkeydown="if(event.key==='Enter')askFollowup()">
+        <button class="generate-btn" style="padding:.4rem .8rem;font-size:.75rem" onclick="askFollowup()">Ask</button>
+      </div>
+      <div id="followupAnswers"></div>
+    </div>
+  </div>
+
+  <!-- == KPI CARDS == -->
+  <!-- Metrics info toggle tab -->
+  <div class="metrics-tab-bar">
+    <button class="metrics-tab-btn active" onclick="switchMetricsView('kpis',this)">Dashboard</button>
+    <button class="metrics-tab-btn" onclick="switchMetricsView('guide',this)">ℹ Metrics Guide</button>
+  </div>
+
+  <!-- Metrics Guide Panel -->
+  <div id="metricsGuidePanel" class="metrics-guide-panel" style="display:none">
+    <div class="guide-grid">
+
+      <div class="guide-card">
+        <div class="guide-icon" style="background:rgba(59,130,246,.12);color:var(--accent-blue)">TP</div>
+        <div class="guide-title">Total Portfolio</div>
+        <div class="guide-body">All-time cumulative principal ever disbursed. Not period-filtered. Grows only when new loans are disbursed.</div>
+        <div class="guide-formula">SUM(principal_disbursed_derived) — status 300,500,600,602,700</div>
+      </div>
+
+      <div class="guide-card">
+        <div class="guide-icon" style="background:rgba(6,182,212,.12);color:var(--accent-cyan)">PO</div>
+        <div class="guide-title">Portfolio Outstanding</div>
+        <div class="guide-body">Live principal balance owed across all active and in-arrears loans. Matches HelaPlus Balance Outstanding. Not period-filtered.</div>
+        <div class="guide-formula">SUM(principal_outstanding_derived) — status 300,500,602</div>
+      </div>
+
+      <div class="guide-card">
+        <div class="guide-icon">D</div>
+        <div class="guide-title">Total Disbursements</div>
+        <div class="guide-body">Principal disbursed in the selected period window. Period-filtered via disbursedon_date. Change chip shows % vs same prior period.</div>
+        <div class="guide-formula">SUM(principal_disbursed_derived) WHERE disbursedon_date IN period</div>
+      </div>
+
+      <div class="guide-card">
+        <div class="guide-icon">C</div>
+        <div class="guide-title">Collections</div>
+        <div class="guide-body">Total money received from borrowers in the period. Uses created_date (posting date) — matches HelaPlus Daily Collection Report exactly. Repayment type only (type_enum=2), excludes reversals.</div>
+        <div class="guide-formula">SUM(amount) WHERE type=2 AND is_reversed=0 AND created_date IN period</div>
+      </div>
+
+      <div class="guide-card" style="border-color:rgba(245,158,11,.3)">
+        <div class="guide-icon" style="background:rgba(245,158,11,.12);color:var(--accent-orange)">E</div>
+        <div class="guide-title">Expected Collections</div>
+        <div class="guide-body">Scheduled installment amounts with duedate falling within the selected period, capped at today. "Today" = loans due today. "Week" = loans due Mon→today. "Month" = loans due 1st→today. No future dates included. Unpaid installments only (completed_derived=0).</div>
+        <div class="guide-formula">SUM(principal+interest+fees) WHERE duedate IN period AND duedate ≤ CURDATE() AND completed=0</div>
+      </div>
+
+      <div class="guide-card" style="border-color:rgba(139,92,246,.3)">
+        <div class="guide-icon" style="background:rgba(139,92,246,.12);color:var(--accent-purple)">%</div>
+        <div class="guide-title">Collection Rate</div>
+        <div class="guide-body">How much of the scheduled obligation was actually collected. Subtitle shows live UGX breakdown. Target: ≥90% Excellent, 80–89% On Track, 50–79% Moderate, &lt;50% Low. Applies per-officer in the leaderboard.</div>
+        <div class="guide-formula">Collections ÷ Expected Collections × 100</div>
+      </div>
+
+      <div class="guide-card">
+        <div class="guide-icon" style="background:rgba(6,182,212,.12);color:var(--accent-cyan)">#</div>
+        <div class="guide-title">Active Loans</div>
+        <div class="guide-body">Count of loans currently active (status=300, no overdue). Live snapshot — not period-filtered. Distinct from Active-in-Arrears (status=602) which are omitted from this count.</div>
+        <div class="guide-formula">COUNT(loan_id) WHERE loan_status_id = 300</div>
+      </div>
+
+      <div class="guide-card" style="border-color:rgba(239,68,68,.3)">
+        <div class="guide-icon" style="background:rgba(239,68,68,.1);color:var(--accent-red)">!</div>
+        <div class="guide-title">PAR &gt; 30 Days</div>
+        <div class="guide-body">Portfolio At Risk — % of active portfolio with 30+ day overdue installment. Live snapshot. Red alert banner at ≥5%. Uses pre-calculated laa.principal_overdue_derived (Method A) — exact HelaPlus match. Never use overdue_since_date_derived for PAR.</div>
+        <div class="guide-formula">SUM(laa.principal_overdue_derived) ÷ SUM(ml.principal_outstanding_derived) × 100</div>
+      </div>
+
+      <div class="guide-card" style="border-color:rgba(220,38,38,.5)">
+        <div class="guide-icon" style="background:rgba(220,38,38,.15);color:#dc2626">!!</div>
+        <div class="guide-title">PAR &gt; 90 Days</div>
+        <div class="guide-body">UMRA regulatory provisioning trigger. Loans overdue by more than 90 days must be provisioned at 100% under Bank of Uganda/UMRA guidelines. Critical for regulatory compliance and financial reporting accuracy.</div>
+        <div class="guide-formula">SUM(overdue_derived WHERE overdue_days &gt; 90) ÷ SUM(outstanding) × 100</div>
+      </div>
+
+      <div class="guide-card">
+        <div class="guide-icon" style="background:rgba(245,158,11,.1);color:var(--accent-orange)">Ø</div>
+        <div class="guide-title">Avg Loan Size</div>
+        <div class="guide-body">Average principal disbursed per loan in the selected period. Tracks ticket-size trends — rising average with stable PAR suggests successful move up-market.</div>
+        <div class="guide-formula">AVG(principal_disbursed_derived) WHERE disbursedon_date IN period</div>
+      </div>
+
+      <div class="guide-card">
+        <div class="guide-icon" style="background:rgba(139,92,246,.1);color:var(--accent-purple)">R</div>
+        <div class="guide-title">Customer Retention</div>
+        <div class="guide-body">% of borrowers who have taken 2+ loans (repeat-borrower rate). All-time — not period-filtered. High rate = satisfaction & loyalty. Low rate may signal repayment issues or competition.</div>
+        <div class="guide-formula">COUNT(clients with ≥2 loans) ÷ COUNT(all clients) × 100</div>
+      </div>
+
+      <div class="guide-card" style="border-color:rgba(239,68,68,.3)">
+        <div class="guide-icon" style="background:rgba(239,68,68,.1);color:var(--accent-red)">!</div>
+        <div class="guide-title">Overdue Amount</div>
+        <div class="guide-body">Principal of unpaid installments whose duedate falls within the selected period and is before today. Period-filtered and branch-filtered. Shows orange/red per officer in the leaderboard. Different from PAR — this is period-specific missed payments, not the cumulative risk rate.</div>
+        <div class="guide-formula">SUM(GREATEST(principal_amount − completed − writtenoff, 0)) WHERE duedate IN period AND duedate &lt; CURDATE() AND completed=0</div>
+      </div>
+
+      <div class="guide-card" style="background:var(--surface-overlay)">
+        <div class="guide-icon">⏱</div>
+        <div class="guide-title">Period Filters</div>
+        <div class="guide-body"><strong>Today</strong>: transactions/dues = today only.<br><strong>Week</strong>: Mon→today.<br><strong>Month</strong>: 1st→today.<br><strong>Qtr/Year</strong>: quarter/year start→today.<br><strong>All</strong>: everything up to today.<br>PAR, Active Loans, and Portfolio metrics are always live — not period-filtered.</div>
+        <div class="guide-formula">m_loan_transaction.created_date | m_loan_repayment_schedule.duedate | m_loan.disbursedon_date</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="kpiMainView">
   <div class="metrics-grid" id="kpiGrid">
     <!-- ── Total Portfolio: all-time book value — no period filter, branch-filterable -->
     <div class="metric-card glass" draggable="true">
       <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
       <div class="metric-header">
         <div class="metric-title">Total Portfolio</div>
         <div class="metric-icon" style="color:var(--accent-purple);background:rgba(139,92,246,.08)">TP</div>
@@ -387,6 +1128,7 @@
     <!-- ── Portfolio Outstanding: live balance sheet — matches HelaPlus Balance Outstanding -->
     <div class="metric-card glass" draggable="true">
       <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
       <div class="metric-header">
         <div class="metric-title">Portfolio Outstanding</div>
         <div class="metric-icon" style="color:var(--accent-cyan);background:rgba(6,182,212,.08)">PO</div>
@@ -397,6 +1139,7 @@
     </div>
     <div class="metric-card glass" draggable="true">
       <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
       <div class="metric-header">
         <div class="metric-title">Total Disbursements</div>
         <div class="metric-icon">D</div>
@@ -408,6 +1151,7 @@
     </div>
     <div class="metric-card glass" draggable="true">
       <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
       <div class="metric-header">
         <div class="metric-title">Collections</div>
         <div class="metric-icon">C</div>
@@ -419,16 +1163,29 @@
     </div>
     <div class="metric-card glass" draggable="true">
       <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
+      <div class="metric-header">
+        <div class="metric-title">Expected Collections</div>
+        <div class="metric-icon" style="color:var(--accent-orange);background:rgba(245,158,11,.08)">E</div>
+      </div>
+      <div class="metric-value" id="kpiExpected">—</div>
+      <div class="metric-sub" id="kpiExpectedCount">Unpaid schedule to period end</div>
+      <div class="metric-footer"><div class="metric-change neutral" id="kpiExpectedChange">—</div><div class="metric-label">vs prior period</div></div>
+    </div>
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
       <div class="metric-header">
         <div class="metric-title">Collection Rate</div>
         <div class="metric-icon" style="color:var(--accent-purple);background:rgba(139,92,246,.08)">%</div>
       </div>
       <div class="metric-value" id="kpiColRate">—</div>
-      <div class="metric-sub">Collections / Disbursements</div>
-      <div class="metric-footer"><div class="metric-change neutral" id="kpiColRateChip">—</div><div class="metric-label">ratio</div></div>
+      <div class="metric-sub" id="kpiColRateSub">Collected ÷ Expected × 100</div>
+      <div class="metric-footer"><div class="metric-change neutral" id="kpiColRateChip">—</div><div class="metric-label">efficiency</div></div>
     </div>
     <div class="metric-card glass" draggable="true">
       <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
       <div class="metric-header">
         <div class="metric-title">Active Loans</div>
         <div class="metric-icon" style="color:var(--accent-cyan);background:rgba(6,182,212,.08)">#</div>
@@ -440,6 +1197,7 @@
     </div>
     <div class="metric-card glass" draggable="true">
       <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
       <div class="metric-header">
         <div class="metric-title">PAR &gt; 30 Days</div>
         <div class="metric-icon" style="color:var(--accent-red);background:rgba(239,68,68,.08)">!</div>
@@ -450,6 +1208,18 @@
     </div>
     <div class="metric-card glass" draggable="true">
       <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
+      <div class="metric-header">
+        <div class="metric-title">PAR &gt; 90 Days</div>
+        <div class="metric-icon" style="color:#dc2626;background:rgba(220,38,38,.08)">!!</div>
+      </div>
+      <div class="metric-value" id="kpiPAR90">—</div>
+      <div class="metric-sub" id="kpiPAR90Amount"></div>
+      <div class="metric-footer"><div id="kpiPAR90Badge"></div><div class="metric-label">UMRA trigger</div></div>
+    </div>
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
       <div class="metric-header">
         <div class="metric-title">Avg Loan Size</div>
         <div class="metric-icon" style="color:var(--accent-orange);background:rgba(245,158,11,.08)">Ø</div>
@@ -460,6 +1230,7 @@
     </div>
     <div class="metric-card glass" draggable="true">
       <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
       <div class="metric-header">
         <div class="metric-title">Customer Retention</div>
         <div class="metric-icon" style="color:var(--accent-purple);background:rgba(139,92,246,.08)">R</div>
@@ -468,11 +1239,26 @@
       <div class="metric-sub" id="kpiRetentionSub"></div>
       <div class="metric-footer"><div id="kpiRetentionBadge"></div><div class="metric-label">repeat clients</div></div>
     </div>
+    <!-- Overdue Amount: unpaid schedule installments falling within selected period, < today -->
+    <div class="metric-card glass" draggable="true">
+      <span class="drag-handle">⋮⋮</span>
+      <button class="explain-btn" onclick="explainKPI(this)" title="AI: Explain this metric">?</button>
+      <div class="metric-header">
+        <div class="metric-title">Overdue Amount</div>
+        <div class="metric-icon" style="color:var(--accent-red);background:rgba(239,68,68,.08)">!</div>
+      </div>
+      <div class="metric-value" id="kpiOverdue">—</div>
+      <div class="metric-sub" id="kpiOverdueSub"></div>
+      <div class="metric-footer"><div id="kpiOverdueBadge"></div><div class="metric-label">period arrears</div></div>
+    </div>
   </div>
+  </div><!-- /kpiMainView -->
 
-  <!-- ══ TREND + GAUGE ══ -->
+
+  <!-- == TREND + GAUGE == -->
   <div class="charts-row two-col">
     <div class="chart-card glass" id="trendSection">
+      <button class="explain-btn" onclick="explainChart(this)" title="Explain this chart">?</button>
       <div class="chart-header"><div><div class="chart-title">Disbursements & Collections Trend</div>
         <div class="chart-subtitle">Daily amounts for the selected period</div></div></div>
       <div class="chart-container h300"><canvas id="trendChart"></canvas></div>
@@ -482,6 +1268,7 @@
       </div>
     </div>
     <div class="chart-card glass" id="gaugeSection">
+      <button class="explain-btn" onclick="explainChart(this)" title="Explain this chart">?</button>
       <div class="chart-header"><div><div class="chart-title">Collections vs Target</div>
         <div class="chart-subtitle">Actual vs scheduled amounts due</div></div></div>
       <div class="gauge-wrapper">
@@ -496,35 +1283,40 @@
     </div>
   </div>
 
-  <!-- ══ PRODUCT + DOW + PAR TREND ══ -->
+  <!-- == PRODUCT + DOW + PAR TREND == -->
   <div class="charts-row three-col">
     <div class="chart-card glass" id="productSection">
+      <button class="explain-btn" onclick="explainChart(this)" title="Explain this chart">?</button>
       <div class="chart-header"><div><div class="chart-title">Product Mix</div>
         <div class="chart-subtitle">Disbursements by loan product</div></div></div>
       <div class="chart-container h250"><canvas id="productChart"></canvas></div>
       <div id="productLegend" class="chart-legend" style="margin-top:.55rem;flex-direction:column;gap:.3rem"></div>
     </div>
     <div class="chart-card glass" id="dowSection">
+      <button class="explain-btn" onclick="explainChart(this)" title="Explain this chart">?</button>
       <div class="chart-header"><div><div class="chart-title">Collections by Day</div>
         <div class="chart-subtitle">Avg daily collections (90 days)</div></div></div>
       <div class="chart-container h250"><canvas id="dowChart"></canvas></div>
       <div class="dow-grid" id="dowGrid"></div>
     </div>
     <div class="chart-card glass" id="parTrendSection">
+      <button class="explain-btn" onclick="explainChart(this)" title="Explain this chart">?</button>
       <div class="chart-header"><div><div class="chart-title">PAR 30 Trend</div>
         <div class="chart-subtitle">Portfolio at risk (6 months)</div></div></div>
       <div class="chart-container h250"><canvas id="parTrendChart"></canvas></div>
     </div>
   </div>
 
-  <!-- ══ BRANCH + ARREARS ══ -->
+  <!-- == BRANCH + ARREARS == -->
   <div class="charts-row two-col">
     <div class="chart-card glass" id="branchChartSection">
+      <button class="explain-btn" onclick="explainChart(this)" title="Explain this chart">?</button>
       <div class="chart-header"><div><div class="chart-title">Branch Performance</div>
         <div class="chart-subtitle">Disbursements & collections by branch</div></div></div>
       <div class="chart-container h300"><canvas id="branchChart"></canvas></div>
     </div>
     <div class="chart-card glass" id="arrearsSection">
+      <button class="explain-btn" onclick="explainChart(this)" title="Explain this chart">?</button>
       <div class="chart-header"><div><div class="chart-title">Arrears Aging</div>
         <div class="chart-subtitle">Active portfolio by days overdue</div></div></div>
       <div class="chart-container h200"><canvas id="arrearsChart"></canvas></div>
@@ -532,8 +1324,9 @@
     </div>
   </div>
 
-  <!-- ══ OFFICER LEADERBOARD ══ -->
+  <!-- == OFFICER LEADERBOARD == -->
   <div class="table-card glass" id="officerSection">
+    <button class="explain-btn" onclick="explainChart(this)" title="Explain this table">?</button>
     <div class="table-header">
       <div><div class="table-title">Loan Officer Leaderboard</div>
         <div class="table-subtitle" id="officerSubtitle">Top performers</div></div>
@@ -541,6 +1334,8 @@
         <div class="sort-tabs" id="officerSortTabs">
           <button class="sort-tab active" data-sort="disbursedAmount" data-table="officer">Disbursement</button>
           <button class="sort-tab" data-sort="collectedAmount" data-table="officer">Collections</button>
+          <button class="sort-tab" data-sort="collectionRate" data-table="officer">Coll %</button>
+          <button class="sort-tab" data-sort="overdueAmount" data-table="officer">Overdue</button>
           <button class="sort-tab" data-sort="par30Rate" data-table="officer">PAR 30</button>
           <button class="sort-tab" data-sort="activeLoans" data-table="officer">Active</button>
           <button class="sort-tab" data-sort="loansDisbursed" data-table="officer">Loan Count</button>
@@ -549,13 +1344,14 @@
       </div>
     </div>
     <div class="table-container">
-      <table><thead><tr><th>#</th><th>Officer</th><th>Branch</th><th>Loans</th><th>Disbursed</th><th>Active</th><th>Collections</th><th>PAR 30</th><th>Score</th></tr></thead>
-      <tbody id="officerTableBody"><tr><td colspan="9" class="empty-state">Loading…</td></tr></tbody></table>
+      <table><thead><tr><th>#</th><th>Officer</th><th>Branch</th><th>Loans</th><th>Disbursed</th><th>Active</th><th>Collections</th><th>Expected</th><th>Overdue</th><th>Coll %</th><th>PAR 30</th><th>Score</th></tr></thead>
+      <tbody id="officerTableBody"><tr><td colspan="12" class="empty-state">Loading…</td></tr></tbody></table>
     </div>
   </div>
 
-  <!-- ══ BRANCH TABLE ══ -->
+  <!-- == BRANCH TABLE == -->
   <div class="table-card glass" id="branchTableSection">
+    <button class="explain-btn" onclick="explainChart(this)" title="Explain this table">?</button>
     <div class="table-header">
       <div><div class="table-title">Branch Summary</div>
         <div class="table-subtitle">Performance by branch</div></div>
@@ -577,12 +1373,111 @@
 
 </div>
 
-<script>
-const API_BASE = window.NOVA_API_BASE || 'http://localhost:3000';
-let currentPeriod='week',currentBranch='all',charts={},branchListLoaded=false;
-let officerData=[],branchData=[],officerSortKey='disbursedAmount',branchSortKey='disbursedAmount';
+  <!-- AI Query Console removed from dashboard — available in AI Insights panel -->
 
-/* ══ THEME ══ */
+  <!-- == BI VALUE TICKER == -->
+<div class="container">
+  <section class="value-panel glass" aria-label="Nova Microfinance values ticker">
+    <div class="value-header">
+      <div class="value-title" style="display:none">Nova Values</div>
+    </div>
+    <div class="value-track">
+      <div class="value-rail">
+        <ul class="value-list">
+          <li class="value-item">Integrity</li>
+          <li class="value-item">Trust</li>
+          <li class="value-item">Affordability</li>
+          <li class="value-item">Dynamic</li>
+          <li class="value-item">Community Development</li>
+          <li class="value-item">Integrity</li>
+          <li class="value-item">Trust</li>
+          <li class="value-item">Affordability</li>
+          <li class="value-item">Dynamic</li>
+          <li class="value-item">Community Development</li>
+        </ul>
+        <ul class="value-list" aria-hidden="true">
+          <li class="value-item">Integrity</li>
+          <li class="value-item">Trust</li>
+          <li class="value-item">Affordability</li>
+          <li class="value-item">Dynamic</li>
+          <li class="value-item">Community Development</li>
+          <li class="value-item">Integrity</li>
+          <li class="value-item">Trust</li>
+          <li class="value-item">Affordability</li>
+          <li class="value-item">Dynamic</li>
+          <li class="value-item">Community Development</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="modal-backdrop" id="officerModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="officerModalTitle">Officer Detail</div>
+      <button class="modal-close" id="officerModalClose" type="button">Close</button>
+    </div>
+    <div class="table-container">
+      <table class="modal-table">
+        <thead><tr><th>Client</th><th>Phone</th><th>Loan</th><th>Product</th><th>Outstanding</th><th>Overdue</th><th>Days</th></tr></thead>
+        <tbody id="officerModalBody"><tr><td colspan="7" class="empty-state">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE=window.location.origin;
+const PAR_ALERT_THRESHOLD=5;
+let currentPeriod='week',currentBranch='all',charts={},branchListLoaded=false;
+let currentStart=null,currentEnd=null;
+let officerData=[],branchData=[],officerSortKey='disbursedAmount',branchSortKey='disbursedAmount';
+let parAlertDismissed=false;
+let _firstLoad=true;
+
+/* ══ PERIOD MODE TOGGLE (Calendar ↔ Rolling) ══ */
+let periodMode = 'calendar'; // 'calendar' | 'rolling'
+function togglePeriodMode() {
+  periodMode = periodMode === 'calendar' ? 'rolling' : 'calendar';
+  const cal = document.getElementById('calPeriods');
+  const roll = document.getElementById('rollingPeriods');
+  const lbl = document.getElementById('periodModeLabel');
+  const btn = document.getElementById('periodModeToggle');
+  if (periodMode === 'rolling') {
+    cal.style.display = 'none';
+    roll.style.display = '';
+    lbl.textContent = 'Rolling';
+    btn.textContent = '⇄ Calendar';
+    // Default to last 30 days when switching to rolling
+    const def = roll.querySelector('[data-period="rolling30"]');
+    if (def) { document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active')); def.classList.add('active'); currentPeriod='rolling30'; loadAll(); }
+  } else {
+    roll.style.display = 'none';
+    cal.style.display = '';
+    lbl.textContent = 'Calendar';
+    btn.textContent = '⇄ Rolling';
+    // Default back to month when switching to calendar
+    const def = cal.querySelector('[data-period="month"]');
+    if (def) { document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active')); def.classList.add('active'); currentPeriod='month'; loadAll(); }
+  }
+}
+function switchMetricsView(tab, btn) {
+  document.querySelectorAll('.metrics-tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const main = document.getElementById('kpiMainView');
+  const guide = document.getElementById('metricsGuidePanel');
+  if (tab === 'guide') {
+    main.style.display = 'none';
+    guide.style.display = '';
+  } else {
+    main.style.display = '';
+    guide.style.display = 'none';
+  }
+}
+
+/* == THEME == */
 function initTheme(){const s=localStorage.getItem('nova-theme')||'dark';document.documentElement.setAttribute('data-theme',s);updIcon(s)}
 function toggleTheme(){const c=document.documentElement.getAttribute('data-theme'),n=c==='dark'?'light':'dark';
   document.documentElement.setAttribute('data-theme',n);localStorage.setItem('nova-theme',n);updIcon(n);showToast(`${n==='light'?'Light':'Dark'} mode`,'info',2000)}
@@ -590,7 +1485,7 @@ function updIcon(t){document.getElementById('themeToggle').textContent=t==='dark
 document.getElementById('themeToggle').addEventListener('click',toggleTheme);
 initTheme();
 
-/* ══ DRAG & DROP ══ */
+/* == DRAG & DROP == */
 !function(){const grid=document.getElementById('kpiGrid');let src=null;
   grid.addEventListener('dragstart',e=>{const c=e.target.closest('.metric-card');if(!c)return;src=c;c.classList.add('dragging');e.dataTransfer.effectAllowed='move'});
   grid.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';const c=e.target.closest('.metric-card');if(c&&c!==src)c.classList.add('drag-over')});
@@ -604,13 +1499,13 @@ initTheme();
     map={};cards.forEach(c=>{map[c.querySelector('.metric-title').textContent]=c});order.forEach(title=>{if(map[title])grid.appendChild(map[title])})}catch(e){}
 }();
 
-/* ══ TOAST ══ */
+/* == TOAST == */
 function showToast(m,type='info',dur=4000){const c=document.getElementById('toastContainer'),
   t=document.createElement('div');t.className=`toast toast-${type}`;
   t.innerHTML=`<span>${{success:'✓',error:'✗',info:'ℹ'}[type]||''}</span><span>${m}</span>`;
   c.appendChild(t);setTimeout(()=>{t.classList.add('toast-exit');setTimeout(()=>t.remove(),300)},dur)}
 
-/* ══ UTILS ══ */
+/* == UTILS == */
 function fmtUGX(n){if(n==null||isNaN(n))return'—';if(Math.abs(n)>=1e9)return'UGX '+(n/1e9).toFixed(2)+'B';
   if(Math.abs(n)>=1e6)return'UGX '+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'UGX '+(n/1e3).toFixed(0)+'K';return'UGX '+n.toLocaleString()}
 function fmtNum(n){return(n??0).toLocaleString()}
@@ -627,7 +1522,20 @@ function showSectionError(id,msg){const el=document.getElementById(id);if(!el)re
   d.innerHTML=`<div class="section-error-text">Failed to load</div><div class="section-error-detail">${msg}</div>`;
   (el.querySelector('.chart-container')||el.querySelector('.table-container')||el).appendChild(d)}
 
-/* ══ CSV EXPORT ══ */
+function rangeParams(){
+  if(!currentStart && !currentEnd) return '';
+  const s=currentStart?`&startDate=${currentStart}`:'';
+  const e=currentEnd?`&endDate=${currentEnd}`:'';
+  return s+e;
+}
+function setDateRangeVisible(show){document.getElementById('dateRange').classList.toggle('show',!!show)}
+function rangeLabel(){
+  if(!currentStart && !currentEnd) return '';
+  if(currentStart && currentEnd) return `${currentStart} to ${currentEnd}`;
+  return currentStart?`From ${currentStart}`:`Until ${currentEnd}`;
+}
+
+/* == CSV EXPORT == */
 function exportTable(tid,fn){const tb=document.getElementById(tid);if(!tb)return;const tbl=tb.closest('table'),
   h=[...tbl.querySelectorAll('thead th')].map(t=>t.textContent.trim()),
   rows=[...tb.querySelectorAll('tr')].map(r=>[...r.querySelectorAll('td')].map(d=>d.textContent.trim().replace(/,/g,''))).filter(r=>r.length>1);
@@ -635,51 +1543,128 @@ function exportTable(tid,fn){const tb=document.getElementById(tid);if(!tb)return
   a=document.createElement('a');a.href=url;a.download=`${fn}-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);
   showToast(`Exported ${rows.length} rows`,'success')}
 
-/* ══ CHART HELPERS ══ */
+/* == CHART HELPERS == */
 const COLORS=['#10b981','#3b82f6','#f59e0b','#8b5cf6','#06b6d4','#ef4444','#ec4899','#14b8a6','#f97316'];
+/* Enable touch events on all charts for mobile interactivity */
+Chart.defaults.events=['mousemove','mouseout','click','touchstart','touchmove','touchend','touchcancel'];
+/* Precise hover: strict intersection and no active transition lag */
+Chart.defaults.interaction={intersect:true,mode:'nearest',axis:'xy'};
+Chart.defaults.hover={intersect:true,mode:'nearest'};
+Chart.defaults.transitions=Chart.defaults.transitions||{};
+Chart.defaults.transitions.active=Chart.defaults.transitions.active||{};
+Chart.defaults.transitions.active.animation=Chart.defaults.transitions.active.animation||{};
+Chart.defaults.transitions.active.animation.duration=0;
+/* Exact point hit-testing for line charts */
+Chart.defaults.elements.point.hitRadius=0;
+
+/* Tooltip positioner that follows the cursor */
+Chart.Tooltip.positioners.cursor=function(elements,eventPosition){return eventPosition;};
+Chart.defaults.plugins.tooltip.position='cursor';
+Chart.defaults.plugins.tooltip.mode='nearest';
+Chart.defaults.plugins.tooltip.intersect=true;
+
+/* Optional per-element dimming without mutating dataset colors */
+const hoverDimPlugin={
+  id:'hoverDim',
+  afterDatasetsDraw(chart,args,pluginOptions){
+    const opts=pluginOptions||{};
+    if(!opts.enabled)return;
+    const active=chart.getActiveElements();
+    if(!active.length)return;
+    const{ctx,chartArea}=chart;
+    ctx.save();
+    ctx.globalAlpha=typeof opts.dimOpacity==='number'?opts.dimOpacity:0.35;
+    ctx.fillStyle=opts.dimColor||'#000';
+    ctx.fillRect(chartArea.left,chartArea.top,chartArea.right-chartArea.left,chartArea.bottom-chartArea.top);
+    ctx.restore();
+    active.forEach(({element})=>{element.draw(ctx)});
+  }
+};
+Chart.register(hoverDimPlugin);
+const INTERACTION_STRICT={intersect:true,mode:'nearest',axis:'xy'};
+const HOVER_STRICT={intersect:true,mode:'nearest'};
+const TOOLTIP_STRICT={position:'cursor',mode:'nearest',intersect:true};
+const BAR_GEOM_GROUPED={categoryPercentage:0.7,barPercentage:0.9,maxBarThickness:42};
+const BAR_GEOM_SINGLE={categoryPercentage:0.8,barPercentage:0.9,maxBarThickness:56};
 function destroyChart(k){if(charts[k]){charts[k].destroy();delete charts[k]}}
 function gc(){return getComputedStyle(document.documentElement).getPropertyValue('--chart-grid').trim()}
 function tc(){return getComputedStyle(document.documentElement).getPropertyValue('--chart-tick').trim()}
 function db(){return getComputedStyle(document.documentElement).getPropertyValue('--doughnut-border').trim()}
 
 function buildSparkline(id,data,color){const k='s_'+id;destroyChart(k);const cv=document.getElementById(id);
-  if(!cv||!data||!data.length)return;charts[k]=new Chart(cv.getContext('2d'),{type:'line',data:{labels:data.map((_,i)=>i),
-    datasets:[{data,borderColor:color,backgroundColor:color+'18',borderWidth:1.5,fill:true,tension:.4,pointRadius:0,pointHitRadius:0}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}},animation:{duration:400}}})}
+  if(!cv||!data||!data.length)return;charts[k]=new Chart(cv.getContext('2d'),{type:'line',data:{labels:data.map((_,i)=>'Day '+(i+1)),
+    datasets:[{data,borderColor:color,backgroundColor:color+'18',borderWidth:1.5,fill:true,tension:.4,pointRadius:0,pointHitRadius:8}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:true,callbacks:{label:c=>fmtUGX(c.raw)}}},scales:{x:{display:false},y:{display:false}},animation:{duration:400}}})}
 
 function buildTrendChart(dd,cd){destroyChart('trend');const ls=new Set([...dd.map(d=>d.label),...cd.map(d=>d.label)]),labels=[...ls].sort(),
   dm=Object.fromEntries(dd.map(d=>[d.label,d.amount])),cm=Object.fromEntries(cd.map(d=>[d.label,d.amount]));
   charts.trend=new Chart(document.getElementById('trendChart').getContext('2d'),{type:'bar',data:{labels,datasets:[
-    {label:'Disbursements',data:labels.map(l=>dm[l]||0),backgroundColor:'rgba(59,130,246,.65)',borderRadius:4,order:2},
-    {label:'Collections',data:labels.map(l=>cm[l]||0),backgroundColor:'rgba(16,185,129,.65)',borderRadius:4,order:1}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+fmtUGX(c.raw)}}},
+    {label:'Disbursements',data:labels.map(l=>dm[l]||0),backgroundColor:'rgba(59,130,246,.65)',hoverBackgroundColor:'rgba(59,130,246,1)',hoverBorderWidth:2,hoverBorderColor:'rgba(255,255,255,.5)',borderRadius:4,order:2},
+    {label:'Collections',data:labels.map(l=>cm[l]||0),backgroundColor:'rgba(16,185,129,.65)',hoverBackgroundColor:'rgba(16,185,129,1)',hoverBorderWidth:2,hoverBorderColor:'rgba(255,255,255,.5)',borderRadius:4,order:1}]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{...INTERACTION_STRICT},hover:{...HOVER_STRICT},
+      datasets:{bar:{...BAR_GEOM_GROUPED}},
+      plugins:{legend:{display:false},tooltip:{...TOOLTIP_STRICT,callbacks:{label:c=>' '+c.dataset.label+': '+fmtUGX(c.raw)}}},
       scales:{x:{grid:{color:gc()},ticks:{color:tc(),maxTicksLimit:12,font:{size:10}}},y:{grid:{color:gc()},ticks:{color:tc(),font:{size:10},callback:v=>fmtUGX(v)}}}}})}
 
 function buildProductChart(products){destroyChart('product');const top=products.slice(0,8);
-  charts.product=new Chart(document.getElementById('productChart').getContext('2d'),{type:'doughnut',data:{labels:top.map(p=>p.productName),
-    datasets:[{data:top.map(p=>p.totalAmount),backgroundColor:COLORS.slice(0,top.length),borderWidth:2,borderColor:db(),hoverOffset:6}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.label+': '+fmtUGX(c.raw)}}},cutout:'64%'}});
-  const total=top.reduce((s,p)=>s+p.totalAmount,0);document.getElementById('productLegend').innerHTML=top.map((p,i)=>
-    `<div class="legend-item" style="justify-content:space-between"><div style="display:flex;align-items:center;gap:.3rem">
-      <div class="legend-dot" style="background:${COLORS[i]}"></div><span style="font-size:.7rem">${p.productName.replace('BODA ','').replace('-Weekly','')}</span></div>
-      <span style="color:var(--text-tertiary);font-size:.68rem">${fmtPct(total?(p.totalAmount/total)*100:0)}</span></div>`).join('')}
+  // Dual-axis: disbursements as bars (left axis), PAR rate as line (right axis)
+  charts.product=new Chart(document.getElementById('productChart').getContext('2d'),{
+    type:'bar',
+    data:{
+      labels:top.map(p=>p.productName.replace('BODA ','').replace('-Weekly','').replace('LOAN','')),
+      datasets:[
+        {label:'Disbursements',data:top.map(p=>p.totalAmount),backgroundColor:COLORS.slice(0,top.length).map(c=>c+'aa'),
+         hoverBackgroundColor:COLORS.slice(0,top.length),borderRadius:5,yAxisID:'y'},
+        {label:'PAR Rate %',data:top.map(p=>p.parRate??0),type:'line',borderColor:'#ef4444',
+         backgroundColor:'rgba(239,68,68,.08)',pointBackgroundColor:'#ef4444',pointBorderColor:db(),
+         pointRadius:5,pointHoverRadius:7,borderWidth:2,fill:false,yAxisID:'y2',tension:.3}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,labels:{color:tc(),font:{size:9},boxWidth:10}},
+        tooltip:{callbacks:{label:c=>c.datasetIndex===0?' '+c.dataset.label+': '+fmtUGX(c.raw):' PAR: '+fmtPct(c.raw)}}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:tc(),font:{size:8},maxRotation:30}},
+        y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>fmtUGX(v)},position:'left'},
+        y2:{grid:{display:false},ticks:{color:'#ef4444',font:{size:9},callback:v=>v+'%'},position:'right',suggestedMax:20}
+      }
+    }
+  });
+  const total=top.reduce((s,p)=>s+p.totalAmount,0);
+  document.getElementById('productLegend').innerHTML=top.map((p,i)=>
+    `<div class="legend-item" style="justify-content:space-between;gap:.5rem">
+      <div style="display:flex;align-items:center;gap:.3rem">
+        <div class="legend-dot" style="background:${COLORS[i]}"></div>
+        <span style="font-size:.7rem">${p.productName.replace('BODA ','').replace('-Weekly','')}</span>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <span style="color:var(--text-tertiary);font-size:.68rem">${fmtPct(total?(p.totalAmount/total)*100:0)}</span>
+        ${(p.parRate??0)>0?`<span style="color:${(p.parRate??0)>10?'#ef4444':(p.parRate??0)>5?'var(--accent-orange)':'var(--accent)'};font-size:.65rem;font-weight:700">PAR ${fmtPct(p.parRate??0)}</span>`:''}
+      </div>
+    </div>`).join('')}
 
 function buildBranchChart(b){destroyChart('branch');const d=b.slice(0,6);
   charts.branch=new Chart(document.getElementById('branchChart').getContext('2d'),{type:'bar',data:{labels:d.map(b=>b.branchName),datasets:[
-    {label:'Disbursed',data:d.map(b=>b.disbursedAmount),backgroundColor:'rgba(59,130,246,.65)',borderRadius:5},
-    {label:'Collected',data:d.map(b=>b.collectedAmount),backgroundColor:'rgba(16,185,129,.65)',borderRadius:5}]},
-    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:true,labels:{color:tc(),font:{size:10}}},
-      tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+fmtUGX(c.raw)}}},
+    {label:'Disbursed',data:d.map(b=>b.disbursedAmount),backgroundColor:'rgba(59,130,246,.65)',hoverBackgroundColor:'rgba(59,130,246,1)',hoverBorderWidth:2,hoverBorderColor:'rgba(255,255,255,.5)',borderRadius:5},
+    {label:'Collected',data:d.map(b=>b.collectedAmount),backgroundColor:'rgba(16,185,129,.65)',hoverBackgroundColor:'rgba(16,185,129,1)',hoverBorderWidth:2,hoverBorderColor:'rgba(255,255,255,.5)',borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',interaction:{...INTERACTION_STRICT},hover:{...HOVER_STRICT},
+      datasets:{bar:{...BAR_GEOM_GROUPED}},
+      plugins:{legend:{display:true,labels:{color:tc(),font:{size:10}}},
+      tooltip:{...TOOLTIP_STRICT,callbacks:{label:c=>' '+c.dataset.label+': '+fmtUGX(c.raw)}}},
       scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>fmtUGX(v)}},y:{grid:{display:false},ticks:{color:tc(),font:{size:10}}}}}})}
 
-function buildArrearsChart(bands){destroyChart('arrears');const cols=['rgba(245,158,11,.65)','rgba(239,68,68,.5)','rgba(239,68,68,.7)','rgba(239,68,68,.9)'];
+function buildArrearsChart(bands){destroyChart('arrears');
+  const cols=['rgba(245,158,11,.55)','rgba(245,158,11,.80)','rgba(249,115,22,.70)','rgba(239,68,68,.60)','rgba(239,68,68,.80)','rgba(185,28,28,.95)'];
   charts.arrears=new Chart(document.getElementById('arrearsChart').getContext('2d'),{type:'bar',data:{labels:bands.map(b=>b.label),
-    datasets:[{data:bands.map(b=>b.amount),backgroundColor:cols,borderRadius:5}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+fmtUGX(c.raw)}}},
+    datasets:[{data:bands.map(b=>b.amount),backgroundColor:cols,hoverBackgroundColor:cols.map(c=>c.replace(/[\d.]+\)$/,'1)')),hoverBorderWidth:2,hoverBorderColor:'rgba(255,255,255,.5)',borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{...INTERACTION_STRICT},hover:{...HOVER_STRICT},
+      datasets:{bar:{...BAR_GEOM_SINGLE}},
+      plugins:{legend:{display:false},tooltip:{...TOOLTIP_STRICT,callbacks:{label:c=>' '+fmtUGX(c.raw)}}},
       scales:{x:{grid:{display:false},ticks:{color:tc(),font:{size:9}}},y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>fmtUGX(v)}}}}});
+  const bandColors=['var(--accent-orange)','#fb923c','#f97316','#f87171','#ef4444','#dc2626'];
   document.getElementById('arrearsBands').innerHTML=bands.map((b,i)=>
     `<div class="arrears-band"><div class="arrears-label">${b.label}</div>
-    <div class="arrears-count" style="color:${['var(--accent-orange)','#f87171','#ef4444','#dc2626'][i]}">${fmtNum(b.count)}</div>
+    <div class="arrears-count" style="color:${bandColors[i]||'#dc2626'}">${fmtNum(b.count)}</div>
     <div class="arrears-amount">${fmtUGX(b.amount)} outstanding</div></div>`).join('')}
 
 function buildGaugeChart(data){destroyChart('gauge');const pct=Math.min(data.achievementPct,100),rem=Math.max(100-pct,0),
@@ -695,8 +1680,10 @@ function buildGaugeChart(data){destroyChart('gauge');const pct=Math.min(data.ach
 
 function buildDOWChart(data){destroyChart('dow');const mx=Math.max(...data.map(d=>d.avgDaily),1);
   charts.dow=new Chart(document.getElementById('dowChart').getContext('2d'),{type:'bar',data:{labels:data.map(d=>d.dayName.slice(0,3)),
-    datasets:[{data:data.map(d=>d.avgDaily),backgroundColor:data.map(d=>`rgba(16,185,129,${0.2+(d.avgDaily/mx)*0.6})`),borderRadius:6}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' Avg: '+fmtUGX(c.raw)}}},
+    datasets:[{data:data.map(d=>d.avgDaily),backgroundColor:data.map(d=>`rgba(16,185,129,${0.2+(d.avgDaily/mx)*0.6})`),hoverBackgroundColor:'rgba(16,185,129,1)',hoverBorderWidth:2,hoverBorderColor:'rgba(255,255,255,.5)',borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{...INTERACTION_STRICT},hover:{...HOVER_STRICT},
+      datasets:{bar:{...BAR_GEOM_SINGLE}},
+      plugins:{legend:{display:false},tooltip:{...TOOLTIP_STRICT,callbacks:{label:c=>' Avg: '+fmtUGX(c.raw)}}},
       scales:{x:{grid:{display:false},ticks:{color:tc(),font:{size:9}}},y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>fmtUGX(v)}}}}});
   document.getElementById('dowGrid').innerHTML=data.map(d=>{const int=d.avgDaily/mx;
     return`<div class="dow-cell" style="background:rgba(16,185,129,${0.02+int*0.1})"><div class="dow-day">${d.dayName.slice(0,3)}</div>
@@ -705,18 +1692,74 @@ function buildDOWChart(data){destroyChart('dow');const mx=Math.max(...data.map(d
 function buildPARTrendChart(data){destroyChart('parTrend');
   charts.parTrend=new Chart(document.getElementById('parTrendChart').getContext('2d'),{type:'line',data:{labels:data.map(d=>d.month),datasets:[
     {label:'PAR 30',data:data.map(d=>d.par30Rate),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.06)',borderWidth:2.5,fill:true,tension:.3,
-      pointBackgroundColor:'#ef4444',pointBorderColor:db(),pointBorderWidth:2,pointRadius:4,pointHoverRadius:6},
+      pointBackgroundColor:'#ef4444',pointBorderColor:db(),pointBorderWidth:2,pointRadius:4,pointHoverRadius:8,pointHoverBorderWidth:3},
     {label:'Target 5%',data:data.map(()=>5),borderColor:'rgba(16,185,129,.4)',borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:tc(),font:{size:9}}},
-      tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+c.raw+'%'}}},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{...INTERACTION_STRICT},hover:{...HOVER_STRICT},
+      elements:{point:{hitRadius:0}},
+      plugins:{legend:{display:true,labels:{color:tc(),font:{size:9}}},
+      tooltip:{...TOOLTIP_STRICT,callbacks:{label:c=>' '+c.dataset.label+': '+c.raw+'%'}}},
       scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:9}}},y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>v+'%'},min:0}}}})}
 
-/* ══ SORTABLE TABLE RENDERERS ══ */
+/* ── Collection Efficiency Chart: 12-month Actual ÷ Expected × 100 ─────────────
+   Data shape from /api/nova/collection-efficiency:
+   [{ month:'2025-03', totalDue:X, totalCollected:Y, efficiencyPct:Z }, ...]
+   Color coding: ≥90 green, ≥80 blue, ≥50 amber, <50 red — matches HelaPlus targets. */
+function buildCollectionEfficiencyChart(data){
+  const canvas=document.getElementById('collectionEfficiencyChart');
+  if(!canvas)return;
+  destroyChart('collectionEfficiency');
+  // Format month labels: '2025-03' → 'Mar 25'
+  const labels=data.map(d=>{const[y,m]=d.month.split('-');return new Date(+y,+m-1,1).toLocaleString('en-GB',{month:'short',year:'2-digit'})});
+  const vals=data.map(d=>d.efficiencyPct||0);
+  const avg=vals.length?Math.round(vals.reduce((s,v)=>s+v,0)/vals.length*10)/10:0;
+  // Point colors: green≥90, blue≥80, amber≥50, red<50
+  const ptColors=vals.map(v=>v>=90?'#10b981':v>=80?'#3b82f6':v>=50?'#f59e0b':'#ef4444');
+  charts.collectionEfficiency=new Chart(canvas.getContext('2d'),{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Efficiency %',data:vals,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.07)',
+       fill:true,tension:.35,pointRadius:5,pointBackgroundColor:ptColors,pointBorderColor:db(),
+       pointBorderWidth:2,pointHoverRadius:7,borderWidth:2.5},
+      {label:'90% Target',data:data.map(()=>90),borderColor:'rgba(201,168,76,.55)',
+       borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{...INTERACTION_STRICT},hover:{...HOVER_STRICT},
+      elements:{point:{hitRadius:0}},
+      plugins:{
+        legend:{display:true,labels:{color:tc(),font:{size:9}}},
+        tooltip:{...TOOLTIP_STRICT,callbacks:{label:c=>` ${c.dataset.label}: ${typeof c.raw==='number'?c.raw.toFixed(1)+'%':c.raw}`}}
+      },
+      scales:{
+        x:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},maxTicksLimit:12}},
+        y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>v+'%'},min:0,suggestedMax:120}
+      }
+    }
+  });
+  // Update avg chip if the element exists
+  const avgEl=document.getElementById('efficiencyAvgChip');
+  if(avgEl){avgEl.textContent=avg.toFixed(1)+'% avg';
+    avgEl.className='score-chip '+(avg>=90?'score-excellent':avg>=80?'score-good':avg>=50?'score-warning':'score-danger');}
+  // Auto-insight text
+  const insightEl=document.getElementById('efficiencyInsight');
+  if(insightEl&&data.length>=2){
+    const last=vals[vals.length-1],prev=vals[vals.length-2];
+    const delta=(last-prev).toFixed(1);
+    const dir=last>=prev?`▲ up ${delta}pp`:`▼ down ${Math.abs(delta)}pp`;
+    insightEl.textContent=`Latest month: ${last.toFixed(1)}% efficiency (${dir} vs prior). 12-mo avg: ${avg.toFixed(1)}%. ${last<80?'Below 80% — collections gap requires attention.':'On track against 90% target.'}`;}
+}
+
+/* == SORTABLE TABLE RENDERERS == */
 function renderOfficerTable(data){officerData=data;
   const sorted=[...data].sort((a,b)=>officerSortKey==='par30Rate'?a[officerSortKey]-b[officerSortKey]:b[officerSortKey]-a[officerSortKey]);
   const mx=Math.max(...sorted.map(o=>o.disbursedAmount),1);
-  document.getElementById('officerTableBody').innerHTML=sorted.length===0?'<tr><td colspan="9" class="empty-state">No data</td></tr>'
-    :sorted.map((o,i)=>`<tr>
+  document.getElementById('officerTableBody').innerHTML=sorted.length===0?'<tr><td colspan="12" class="empty-state">No data</td></tr>'
+    :sorted.map((o,i)=>{
+      const cr=o.collectionRate??0;
+      const crClass=cr>=90?'score-excellent':cr>=80?'score-good':cr>=50?'score-warning':'score-danger';
+      const crLabel=cr>=90?'✓ Excellent':cr>=80?'On Track':cr>=50?'Moderate':'Low';
+      const ovd=o.overdueAmount??0;
+      const ovdColor=ovd===0?'var(--text-tertiary)':ovd<100000?'var(--accent-orange)':'var(--accent-red)';
+      return`<tr class="row-click" data-officer-id="${o.officerId}" data-officer-name="${o.officerName}">
       <td><span class="rank-badge rank-${i<3?i+1:'n'}">${i+1}</span></td>
       <td><div class="officer-name">${o.officerName}</div></td>
       <td><span class="officer-branch">${o.branchName}</span></td>
@@ -724,8 +1767,12 @@ function renderOfficerTable(data){officerData=data;
       <td>${fmtUGX(o.disbursedAmount)}<div class="progress-bar" style="margin-top:.2rem"><div class="progress-fill" style="width:${Math.round(o.disbursedAmount/mx*100)}%;background:var(--accent)"></div></div></td>
       <td>${fmtNum(o.activeLoans)}</td>
       <td>${fmtUGX(o.collectedAmount)}</td>
+      <td style="color:var(--text-secondary);font-size:.78rem">${fmtUGX(o.expectedAmount??0)}</td>
+      <td style="color:${ovdColor};font-size:.78rem;font-weight:${ovd>0?'600':'400'}">${ovd>0?fmtUGX(ovd):'—'}</td>
+      <td><span class="score-chip ${crClass}" title="${crLabel} — ${fmtUGX(o.collectedAmount??0)} of ${fmtUGX(o.expectedAmount??0)}">${fmtPct(cr)}</span></td>
       <td><span style="color:${o.par30Rate<=5?'var(--accent)':o.par30Rate<=10?'var(--accent-orange)':'var(--accent-red)'}">${fmtPct(o.par30Rate)}</span></td>
-      <td><span class="score-chip ${scoreClass(o.par30Rate)}">${scoreLabel(o.par30Rate)}</span></td></tr>`).join('')}
+      <td><span class="score-chip ${scoreClass(o.par30Rate)}">${scoreLabel(o.par30Rate)}</span></td></tr>`;
+    }).join('')}
 
 function renderBranchTable(data){branchData=data;
   const sorted=[...data].sort((a,b)=>b[branchSortKey]-a[branchSortKey]);
@@ -738,39 +1785,113 @@ function renderBranchTable(data){branchData=data;
       <td>${fmtUGX(b.collectedAmount)}</td><td>${fmtNum(b.activeLoans)}</td><td>${fmtUGX(b.totalOutstanding)}</td>
       <td><span class="score-chip ${parseFloat(cr)>=80?'score-excellent':parseFloat(cr)>=50?'score-good':'score-warning'}">${cr}%</span></td></tr>`}).join('')}
 
+async function openOfficerModal(officerId, officerName){try{
+  const modal=document.getElementById('officerModal');
+  const body=document.getElementById('officerModalBody');
+  document.getElementById('officerModalTitle').textContent=`${officerName} — Loan Detail`;
+  body.innerHTML='<tr><td colspan="7" class="empty-state">Loading...</td></tr>';
+  modal.classList.add('show');
+  const bp=currentBranch&&currentBranch!=='all'?`&branch=${currentBranch}`:'';
+  const r=await fetch(`${API_BASE}/api/nova/officer-loans?officerId=${officerId}${bp}`);
+  if(!r.ok)throw new Error(`Officer loans HTTP ${r.status}`);
+  const{data}=await r.json();
+  body.innerHTML=!data.length?'<tr><td colspan="7" class="empty-state">No active loans.</td></tr>'
+    :data.map(l=>`<tr>
+      <td>${l.clientName||'—'}</td>
+      <td>${l.clientPhone||'—'}</td>
+      <td>${l.loanAccount||l.loanId||'—'}</td>
+      <td>${l.productName||'—'}</td>
+      <td>${fmtUGX(l.outstanding||0)}</td>
+      <td>${fmtUGX(l.principalOverdue||0)}</td>
+      <td>${l.daysInArrears||0}</td>
+    </tr>`).join('');
+}catch(e){showToast('Officer drill-down failed: '+e.message,'error')}}
+
+function closeOfficerModal(){document.getElementById('officerModal').classList.remove('show')}
+
 document.querySelectorAll('.sort-tab').forEach(tab=>{tab.addEventListener('click',()=>{
   const tt=tab.dataset.table,sk=tab.dataset.sort;tab.closest('.sort-tabs').querySelectorAll('.sort-tab').forEach(t=>t.classList.remove('active'));
   tab.classList.add('active');if(tt==='officer'){officerSortKey=sk;renderOfficerTable(officerData)}else{branchSortKey=sk;renderBranchTable(branchData)}})});
 
-/* ══ DATA LOADERS ══ */
+/* == DATA LOADERS == */
 // ── Each loader shows its own section error AND re-throws so loadAll can count failures.
 // ── Sparklines / branchList are non-critical — they fail silently (no count).
 
 async function loadKPIs(p,b){try{
   const bp=b&&b!=='all'?`&branch=${b}`:'';
-  const r=await fetch(`${API_BASE}/api/nova/kpis?period=${p}${bp}`);
+  const rp=rangeParams();
+  const r=await fetch(`${API_BASE}/api/nova/kpis?period=${p}${bp}${rp}`);
   if(!r.ok)throw new Error(`KPIs HTTP ${r.status}`);
   const{data}=await r.json();
-  document.getElementById('kpiTotalPortfolio').textContent=fmtUGX(data.totalPortfolio.total);
-  document.getElementById('kpiTotalPortfolioCount').textContent=fmtNum(data.totalPortfolio.loanCount)+' loans (all-time)';
-  document.getElementById('kpiPortfolioOutstanding').textContent=fmtUGX(data.portfolioOutstanding.total);
-  document.getElementById('kpiPortfolioOutstandingCount').textContent=fmtNum(data.portfolioOutstanding.loanCount)+' loans on book';
-  document.getElementById('kpiDisbTotal').textContent=fmtUGX(data.disbursements.total);
-  document.getElementById('kpiDisbCount').textContent=fmtNum(data.disbursements.loanCount)+' loans';
-  changeChip(document.getElementById('kpiDisbChange'),data.disbursements.change);
-  document.getElementById('kpiColTotal').textContent=fmtUGX(data.collections.total);
-  document.getElementById('kpiColCount').textContent=fmtNum(data.collections.txnCount)+' txns';
-  changeChip(document.getElementById('kpiColChange'),data.collections.change);
-  const rate=data.collectionRate;document.getElementById('kpiColRate').textContent=fmtPct(rate);
-  const re=document.getElementById('kpiColRateChip');re.textContent=rate>=90?'Excellent':rate>=80?'On Track':rate>=50?'Moderate':'Low';
+  if(!data)throw new Error('KPIs: empty response');
+  // Total Portfolio
+  document.getElementById('kpiTotalPortfolio').textContent=fmtUGX(data.totalPortfolio?.total??0);
+  document.getElementById('kpiTotalPortfolioCount').textContent=fmtNum(data.totalPortfolio?.loanCount??0)+' loans (all-time)';
+  // Portfolio Outstanding — now uses IN(300,500,602) matching HelaPlus Balance Outstanding
+  document.getElementById('kpiPortfolioOutstanding').textContent=fmtUGX(data.portfolioOutstanding?.total??0);
+  document.getElementById('kpiPortfolioOutstandingCount').textContent=fmtNum(data.portfolioOutstanding?.loanCount??0)+' loans on book';
+  // Disbursements
+  document.getElementById('kpiDisbTotal').textContent=fmtUGX(data.disbursements?.total??0);
+  document.getElementById('kpiDisbCount').textContent=fmtNum(data.disbursements?.loanCount??0)+' loans';
+  changeChip(document.getElementById('kpiDisbChange'),data.disbursements?.change??null);
+  // Collections
+  document.getElementById('kpiColTotal').textContent=fmtUGX(data.collections?.total??0);
+  document.getElementById('kpiColCount').textContent=fmtNum(data.collections?.txnCount??0)+' txns';
+  changeChip(document.getElementById('kpiColChange'),data.collections?.change??null);
+  // Expected Collections — same-window duedate, no future dates
+  const expTotal=data.expectedCollections?.total??0;
+  document.getElementById('kpiExpected').textContent=fmtUGX(expTotal);
+  // Dynamic subtitle: "loans due [period_start] → today"
+  const periodStartLabel={
+    'today':'today',
+    'week':'Mon → today',
+    'month':'1st → today',
+    'quarter':'Qtr start → today',
+    'year':'Jan 1 → today',
+    'uptodate':'All time → today',
+    'rolling7':'Last 7 days',
+    'rolling30':'Last 30 days',
+    'rolling90':'Last 90 days',
+    'rolling12m':'Last 12 months'
+  }[p]||p;
+  const expCount=data.expectedCollections?.loanCount??0;
+  document.getElementById('kpiExpectedCount').textContent=
+    expCount>0?`${fmtNum(expCount)} loans due ${periodStartLabel}`:`Due ${periodStartLabel}`;
+  changeChip(document.getElementById('kpiExpectedChange'),data.expectedCollections?.change??null);
+  // Collection Rate = Collected / Expected × 100
+  const rate=data.collectionRate??0;
+  document.getElementById('kpiColRate').textContent=fmtPct(rate);
+  const rateSub=document.getElementById('kpiColRateSub');
+  if(rateSub)rateSub.textContent=`${fmtUGX(data.collections?.total??0)} of ${fmtUGX(expTotal)}`;
+  const re=document.getElementById('kpiColRateChip');
+  re.textContent=rate>=90?'Excellent':rate>=80?'On Track':rate>=50?'Moderate':'Low';
   re.className='metric-change '+(rate>=80?'up':rate>=50?'neutral':'down');
-  document.getElementById('kpiActiveLoans').textContent=fmtNum(data.activeLoans.count);
-  document.getElementById('kpiActiveClients').textContent=fmtNum(data.activeLoans.clientCount)+' clients';
-  document.getElementById('kpiOutstanding').textContent='Outstanding: '+fmtUGX(data.activeLoans.totalOutstanding);
-  document.getElementById('kpiPAR').textContent=fmtPct(data.par30.rate);
-  document.getElementById('kpiPARAmount').textContent=fmtUGX(data.par30.amount)+' at risk';
-  document.getElementById('kpiPARBadge').innerHTML=parBadge(data.par30.rate,data.par30.status);
-  document.getElementById('kpiAvgLoan').textContent=fmtUGX(data.avgLoanSize.amount);
+  // Active Loans
+  document.getElementById('kpiActiveLoans').textContent=fmtNum(data.activeLoans?.count??0);
+  document.getElementById('kpiActiveClients').textContent=fmtNum(data.activeLoans?.clientCount??0)+' clients';
+  document.getElementById('kpiOutstanding').textContent='Outstanding: '+fmtUGX(data.activeLoans?.totalOutstanding??0);
+  // PAR > 30 Days
+  const par=data.par30??{rate:0,amount:0,status:'good'};
+  document.getElementById('kpiPAR').textContent=fmtPct(par.rate);
+  document.getElementById('kpiPARAmount').textContent=fmtUGX(par.amount)+' at risk';
+  document.getElementById('kpiPARBadge').innerHTML=parBadge(par.rate,par.status);
+  document.getElementById('parAlertValue').textContent=fmtPct(par.rate);
+  const showPar=!parAlertDismissed && par.rate>=PAR_ALERT_THRESHOLD;
+  document.getElementById('parAlert').classList.toggle('show',showPar);
+  // PAR > 90 Days (UMRA provisioning trigger)
+  const par90=data.par90??{rate:0,amount:0,status:'excellent'};
+  document.getElementById('kpiPAR90').textContent=fmtPct(par90.rate);
+  document.getElementById('kpiPAR90Amount').textContent=fmtUGX(par90.amount)+' provision risk';
+  document.getElementById('kpiPAR90Badge').innerHTML=parBadge(par90.rate,par90.status);
+  // Avg Loan Size
+  document.getElementById('kpiAvgLoan').textContent=fmtUGX(data.avgLoanSize?.amount??0);
+  // Overdue Amount — unpaid installments within period window, duedate < today
+  const ovd=data.overdueAmount??{total:0,principal:0,loanCount:0};
+  document.getElementById('kpiOverdue').textContent=fmtUGX(ovd.total);
+  document.getElementById('kpiOverdueSub').textContent=
+    ovd.loanCount>0?`${fmtNum(ovd.loanCount)} loans missed ${periodStartLabel}`:`Missed ${periodStartLabel}`;
+  const ovdEl=document.getElementById('kpiOverdueBadge');
+  if(ovdEl)ovdEl.innerHTML=parBadge(0,ovd.total>0?'danger':'excellent');
 }catch(e){showToast('KPIs failed: '+e.message,'error');throw e}}
 
 async function loadRetention(p,b){try{
@@ -796,7 +1917,8 @@ async function loadSparklines(b){try{
 
 async function loadTimeSeries(p,b){try{
   const bp=b&&b!=='all'?`&branch=${b}`:'';
-  const r=await fetch(`${API_BASE}/api/nova/timeseries?period=${p}${bp}`);
+  const rp=rangeParams();
+  const r=await fetch(`${API_BASE}/api/nova/timeseries?period=${p}${bp}${rp}`);
   if(!r.ok)throw new Error(`Timeseries HTTP ${r.status}`);
   const{data}=await r.json();
   document.getElementById('trendChart').style.display='';
@@ -805,7 +1927,8 @@ async function loadTimeSeries(p,b){try{
 
 async function loadProducts(p,b){try{
   const bp=b&&b!=='all'?`&branch=${b}`:'';
-  const r=await fetch(`${API_BASE}/api/nova/products?period=${p}${bp}`);
+  const rp=rangeParams();
+  const r=await fetch(`${API_BASE}/api/nova/products?period=${p}${bp}${rp}`);
   if(!r.ok)throw new Error(`Products HTTP ${r.status}`);
   const{data}=await r.json();
   document.getElementById('productChart').style.display='';
@@ -814,7 +1937,8 @@ async function loadProducts(p,b){try{
 
 async function loadBranches(p,b){try{
   const bp=b&&b!=='all'?`&branch=${b}`:'';
-  const r=await fetch(`${API_BASE}/api/nova/branches?period=${p}${bp}`);
+  const rp=rangeParams();
+  const r=await fetch(`${API_BASE}/api/nova/branches?period=${p}${bp}${rp}`);
   if(!r.ok)throw new Error(`Branches HTTP ${r.status}`);
   const{data}=await r.json();
   document.getElementById('branchChart').style.display='';
@@ -823,11 +1947,13 @@ async function loadBranches(p,b){try{
 
 async function loadOfficers(p,b){try{
   const bp=b&&b!=='all'?`&branch=${b}`:'';
-  const r=await fetch(`${API_BASE}/api/nova/officers?period=${p}${bp}`);
+  const rp=rangeParams();
+  const r=await fetch(`${API_BASE}/api/nova/officers?period=${p}${bp}${rp}`);
   if(!r.ok)throw new Error(`Officers HTTP ${r.status}`);
   const{data}=await r.json();
   const lbl=p==='week'?'This Week':p==='month'?'Month':p==='today'?'Today':p.charAt(0).toUpperCase()+p.slice(1);
-  document.getElementById('officerSubtitle').textContent=`${data.length} officers — ${lbl}`;
+  const rl=rangeLabel();
+  document.getElementById('officerSubtitle').textContent=`${data.length} officers — ${rl||lbl}`;
   renderOfficerTable(data);
 }catch(e){showSectionError('officerSection',e.message);throw e}}
 
@@ -842,7 +1968,8 @@ async function loadArrears(b){try{
 
 async function loadCollectionTarget(p,b){try{
   const bp=b&&b!=='all'?`&branch=${b}`:'';
-  const r=await fetch(`${API_BASE}/api/nova/collection-target?period=${p}${bp}`);
+  const rp=rangeParams();
+  const r=await fetch(`${API_BASE}/api/nova/collection-target?period=${p}${bp}${rp}`);
   if(!r.ok)throw new Error(`Collection target HTTP ${r.status}`);
   const{data}=await r.json();
   document.getElementById('gaugeChart').style.display='';
@@ -865,6 +1992,21 @@ async function loadPARTrend(){try{
   buildPARTrendChart(data);
 }catch(e){showSectionError('parTrendSection',e.message);throw e}}
 
+/* ── Collection Efficiency Trend: 12-month actual/expected % — endpoint /api/nova/collection-efficiency ── */
+async function loadCollectionEfficiency(b){try{
+  const bp=b&&b!=='all'?`?branch=${b}`:'';
+  const r=await fetch(`${API_BASE}/api/nova/collection-efficiency${bp}`);
+  if(!r.ok)throw new Error(`Collection efficiency HTTP ${r.status}`);
+  const{data}=await r.json();
+  const sec=document.getElementById('collectionEfficiencySection');
+  if(!sec)return; // section not present in this layout — skip silently
+  buildCollectionEfficiencyChart(data);
+}catch(e){
+  const sec=document.getElementById('collectionEfficiencySection');
+  if(sec)showSectionError('collectionEfficiencySection',e.message);
+  // non-critical — do NOT re-throw so loadAll keeps going
+}}
+
 async function loadBranchList(){if(branchListLoaded)return;try{
   const r=await fetch(`${API_BASE}/api/nova/branch-list`);
   if(!r.ok)return;
@@ -875,32 +2017,753 @@ async function loadBranchList(){if(branchListLoaded)return;try{
   branchListLoaded=true;
 }catch(e){console.warn('Branch list:',e.message)}}
 
-/* ══ MAIN LOADER ══
+/* == MAIN LOADER ══
    Critical loaders (those that re-throw) counted via Promise.allSettled.
    Non-critical: sparklines, branchList — always settle as fulfilled. */
 async function loadAll(){
   const p=currentPeriod,b=currentBranch,dot=document.getElementById('statusDot');
+  const overlay=document.getElementById('loaderOverlay');
+  const refreshPill=document.getElementById('loaderRefresh');
   dot.style.background='var(--accent-orange)';
   setLoading(10);const t0=Date.now();
   document.querySelectorAll('.section-error').forEach(e=>e.remove());
+  if(!_firstLoad) refreshPill.classList.add('visible');
   const results=await Promise.allSettled([
     loadKPIs(p,b), loadRetention(p,b), loadSparklines(b), loadTimeSeries(p,b),
     loadCollectionTarget(p,b), loadProducts(p,b), loadBranches(p,b),
-    loadOfficers(p,b), loadArrears(b), loadDOW(), loadPARTrend(), loadBranchList()
+    loadOfficers(p,b), loadArrears(b), loadDOW(), loadPARTrend(), loadBranchList(),
+    loadCollectionEfficiency(b)
   ]);
   setLoading(100);
+  if(_firstLoad){
+    // Animate loader bar to 100% then wait for it to complete before hiding
+    const bar=document.getElementById('loaderBarFill');
+    const lbl=document.getElementById('loaderBarLabel');
+    if(bar){bar.style.transition='width 0.8s ease';bar.style.width='100%';}
+    if(lbl){lbl.textContent='Dashboard ready.';}
+    const elapsed=Date.now()-t0;
+    const minDelay=4000; // 4-second minimum load time
+    const wait=Math.max(minDelay-elapsed, 900); // at least 900ms for bar anim
+    setTimeout(()=>{overlay.classList.add('hidden');_firstLoad=false;},wait);
+  }
+  refreshPill.classList.remove('visible');
   const elapsed=((Date.now()-t0)/1000).toFixed(1);
   const failed=results.filter(r=>r.status==='rejected').length;
   dot.style.background=failed===0?'var(--accent)':'var(--accent-orange)';
   if(failed===0)showToast(`Refreshed in ${elapsed}s`,'success',3000);
   else showToast(`${failed} section(s) failed — check console`,'error',5000);
-  document.getElementById('lastUpdate').textContent='Updated: '+new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const rl=rangeLabel();
+  document.getElementById('lastUpdate').textContent='Updated: '+new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+(rl?` · Range ${rl}`:'');
   document.getElementById('printDate').textContent='Generated: '+new Date().toLocaleString();
   setTimeout(()=>setLoading(0),800)}
 
-/* ══ EVENTS ══ */
+/* == AI INSIGHTS == */
+let insightsOpen = false;
+let lastInsightText = '';
+
+let _savedDisplayStates = [];
+function toggleInsights() {
+  insightsOpen = !insightsOpen;
+  const panel = document.getElementById('insightsPanel');
+  const btn = document.getElementById('insightsTabBtn');
+  const dashSections = document.querySelectorAll('.metrics-tab-bar, .metrics-grid, #metricsGuidePanel, #kpiMainView, .charts-row, .table-card, .vvv-signature, .alert-banner');
+
+  if (insightsOpen) {
+    // Save current display state before hiding
+    _savedDisplayStates = [...dashSections].map(el => ({ el, display: el.style.display }));
+    panel.style.display = 'block';
+    dashSections.forEach(el => el.style.display = 'none');
+    btn.style.background = 'linear-gradient(135deg,var(--accent),var(--accent-dark))';
+    btn.style.color = '#fff';
+    const lbl = { today:'Today', week:'This Week', month:'This Month', quarter:'This Quarter', year:'This Year', uptodate:'All Time' }[currentPeriod] || currentPeriod;
+    const branch = currentBranch !== 'all' ? ` · ${document.getElementById('branchFilter').selectedOptions[0]?.text || ''}` : '';
+    document.getElementById('insightPeriodLabel').textContent = `Period: ${lbl}${branch}`;
+    // Auto-generate insights on first open if none exist yet
+    if (!lastInsightText) {
+      generateInsights();
+    }
+  } else {
+    panel.style.display = 'none';
+    // Restore exact display states from before opening
+    _savedDisplayStates.forEach(({ el, display }) => el.style.display = display);
+    btn.style.background = '';
+    btn.style.color = '';
+  }
+}
+
+function parseInsightSections(text) {
+  const sections = {};
+  const matches = [...text.matchAll(/##\s+(.+?)\n([\s\S]*?)(?=\n##\s|$)/g)];
+  for (const m of matches) {
+    const title = m[1].trim().toLowerCase();
+    const body = m[2].trim();
+    if (title.includes('executive'))  sections.exec = body;
+    if (title.includes('health'))     sections.health = body;
+    if (title.includes('risk'))       sections.risk = body;
+    if (title.includes('highlight') || title.includes('performance')) sections.perf = body;
+    if (title.includes('action') || title.includes('recommend'))      sections.actions = body;
+  }
+  if (Object.keys(sections).length === 0) sections.exec = text;
+  return sections;
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  const lines = text.split('\n');
+  let html = '';
+  let inUl = false, inOl = false, inTable = false;
+
+  function closeLists() {
+    if (inUl) { html += '</ul>'; inUl = false; }
+    if (inOl) { html += '</ol>'; inOl = false; }
+    if (inTable) { html += '</tbody></table></div>'; inTable = false; }
+  }
+
+  function inlineFormat(s) {
+    return s
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code style="background:var(--surface-overlay);padding:.1rem .3rem;border-radius:4px;font-size:.78rem">$1</code>');
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Skip empty lines
+    if (!trimmed) { closeLists(); html += '<div style="height:.4rem"></div>'; continue; }
+
+    // Table separator row (|---|---|)
+    if (/^\|[\s\-:|]+\|$/.test(trimmed)) continue;
+
+    // Table row
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      const cells = trimmed.slice(1, -1).split('|').map(c => c.trim());
+      if (!inTable) {
+        closeLists();
+        html += '<div style="overflow-x:auto;margin:.5rem 0"><table style="width:100%;border-collapse:collapse;font-size:.78rem;line-height:1.5">';
+        html += '<thead><tr>' + cells.map(c => `<th style="text-align:left;padding:.4rem .6rem;border-bottom:2px solid var(--glass-border);font-weight:700;color:var(--text-secondary);white-space:nowrap">${inlineFormat(c)}</th>`).join('') + '</tr></thead><tbody>';
+        inTable = true;
+        continue;
+      }
+      // Highlight risk rows
+      const rowClass = /alert|100%|high/i.test(trimmed) ? 'color:var(--accent-red)' : /elevated|borderline/i.test(trimmed) ? 'color:var(--accent-orange)' : '';
+      html += '<tr>' + cells.map(c => `<td style="padding:.35rem .6rem;border-bottom:1px solid var(--border-color);${rowClass}">${inlineFormat(c)}</td>`).join('') + '</tr>';
+      continue;
+    }
+
+    // Close table if we hit a non-table line
+    if (inTable) { html += '</tbody></table></div>'; inTable = false; }
+
+    // ### Sub-headers
+    if (/^###\s+/.test(trimmed)) {
+      closeLists();
+      html += `<div style="font-weight:700;font-size:.82rem;margin:.7rem 0 .3rem;color:var(--accent-light)">${inlineFormat(trimmed.replace(/^###\s+/, ''))}</div>`;
+      continue;
+    }
+
+    // Numbered list
+    const olMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+    if (olMatch) {
+      if (!inOl) { if (inUl) { html += '</ul>'; inUl = false; } html += '<ol style="padding-left:1.3rem;margin:.25rem 0">'; inOl = true; }
+      html += `<li style="margin-bottom:.35rem">${inlineFormat(olMatch[2])}</li>`;
+      continue;
+    }
+
+    // Bullet list
+    if (/^[-•*]\s+/.test(trimmed)) {
+      if (!inUl) { if (inOl) { html += '</ol>'; inOl = false; } html += '<ul style="padding-left:1.3rem;margin:.25rem 0">'; inUl = true; }
+      html += `<li style="margin-bottom:.35rem">${inlineFormat(trimmed.replace(/^[-•*]\s+/, ''))}</li>`;
+      continue;
+    }
+
+    // Bold-prefixed label line (e.g. "**Action:** ...")
+    if (/^\*\*[^*]+\*\*/.test(trimmed)) {
+      closeLists();
+      html += `<div style="margin:.2rem 0">${inlineFormat(trimmed)}</div>`;
+      continue;
+    }
+
+    // Horizontal rule
+    if (/^---+$/.test(trimmed)) { closeLists(); continue; }
+
+    // Regular paragraph
+    closeLists();
+    html += `<p style="margin:.25rem 0">${inlineFormat(trimmed)}</p>`;
+  }
+
+  closeLists();
+  return html;
+}
+
+async function generateInsights() {
+  const btn = document.getElementById('generateBtn');
+  const results = document.getElementById('insightResults');
+  const errEl = document.getElementById('insightError');
+
+  btn.disabled = true; btn.classList.add('loading');
+  results.style.display = 'none'; errEl.style.display = 'none';
+  document.getElementById('followupAnswers').innerHTML = '';
+
+  try {
+    const context = document.getElementById('insightContext').value.trim();
+    const r = await fetch(`${API_BASE}/api/nova/ai-insight`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ period: currentPeriod, branch: currentBranch, userContext: context })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'AI service error');
+
+    lastInsightText = d.insight;
+    const sections = parseInsightSections(d.insight);
+    document.getElementById('insightExec').innerHTML = renderMarkdown(sections.exec || '—');
+    document.getElementById('insightHealth').innerHTML = renderMarkdown(sections.health || '—');
+    document.getElementById('insightRisk').innerHTML = renderMarkdown(sections.risk || '—');
+    document.getElementById('insightPerf').innerHTML = renderMarkdown(sections.perf || '—');
+    document.getElementById('insightActions').innerHTML = renderMarkdown(sections.actions || '—');
+
+    const ts = new Date(d.generatedAt || Date.now()).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    document.getElementById('insightMeta').textContent = `Generated at ${ts} · Period: ${d.period}`;
+    results.style.display = 'block';
+    showToast('AI briefing generated', 'success', 3000);
+  } catch(e) {
+    errEl.textContent = 'Could not generate insights — ' + e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading');
+  }
+}
+
+async function askFollowup() {
+  const input = document.getElementById('insightFollowup');
+  const question = input.value.trim();
+  if (!question || !lastInsightText) return;
+
+  const container = document.getElementById('followupAnswers');
+  const qDiv = document.createElement('div');
+  qDiv.className = 'insight-followup-answer';
+  qDiv.style.borderLeft = '3px solid var(--accent-cyan)';
+  qDiv.innerHTML = `<div style="font-size:.68rem;color:var(--text-tertiary);margin-bottom:.3rem;font-weight:700">Q: ${question}</div><div style="color:var(--text-tertiary);font-size:.75rem">Thinking...</div>`;
+  container.appendChild(qDiv);
+  input.value = '';
+
+  try {
+    const r = await fetch(`${API_BASE}/api/nova/ai-followup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ previousInsight: lastInsightText, question, period: currentPeriod, branch: currentBranch })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Follow-up failed');
+    qDiv.querySelector('div:last-child').innerHTML = renderMarkdown(d.answer);
+    qDiv.querySelector('div:last-child').style.color = '';
+  } catch(e) {
+    qDiv.querySelector('div:last-child').textContent = 'Error: ' + e.message;
+    qDiv.querySelector('div:last-child').style.color = 'var(--accent-red)';
+  }
+}
+
+function copyInsight() {
+  if (!lastInsightText) return;
+  navigator.clipboard.writeText(lastInsightText).then(() => showToast('Briefing copied', 'success', 2000))
+    .catch(() => showToast('Copy failed', 'error', 2000));
+}
+
+function exportInsight() {
+  if (!lastInsightText) return;
+  const blob = new Blob([lastInsightText], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `nova-ai-briefing-${new Date().toISOString().slice(0,10)}.txt`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast('Briefing exported', 'success', 2000);
+}
+
+/* == KPI EXPLAINER == */
+// Preloaded KPI definitions — instant display, no API call needed
+const KPI_DEFINITIONS = {
+  'Total Portfolio': {
+    definition: 'Cumulative principal ever disbursed across all loans (active, closed, written-off). This is a lifetime measure and is not period-filtered.',
+    formula: 'SUM(principal_disbursed_derived) for loan status 300, 500, 600, 602, 700',
+    insight: 'Grows only when new loans are disbursed. A flat total portfolio means no new lending activity. Compare against Active Loans to gauge portfolio turnover.',
+    action: 'If growth is stalling, review loan product competitiveness and branch disbursement targets.'
+  },
+  'Portfolio Outstanding': {
+    definition: 'Live principal balance owed across all active and in-arrears loans right now. Matches HelaPlus "Balance Outstanding".',
+    formula: 'SUM(principal_outstanding_derived) for active loans (status 300)',
+    insight: 'This is your balance sheet exposure. Rising outstanding with stable PAR means healthy growth. Rising outstanding with rising PAR signals risk accumulation.',
+    action: 'Monitor alongside PAR — if both are rising, tighten disbursement approvals.'
+  },
+  'Total Disbursements': {
+    definition: 'Total principal amount disbursed during the selected period. Measures lending velocity and new business generation.',
+    formula: 'SUM(principal_disbursed_derived) WHERE disbursedon_date IN period',
+    insight: 'The "vs prior" change shows momentum — positive means accelerating lending. Compare across branches to spot underperformers.',
+    action: 'If declining, investigate: is it demand-side (fewer applications) or supply-side (tighter approvals)?'
+  },
+  'Collections': {
+    definition: 'Total repayments received during the selected period. This is actual cash collected from borrowers.',
+    formula: 'SUM(transaction_amount) WHERE transaction_type = 2 (repayment) AND date IN period',
+    insight: 'Collections funding your next disbursements. The "vs prior" change shows collection momentum. Should generally track or exceed disbursements for a healthy portfolio.',
+    action: 'If collections are dropping while disbursements rise, you may be building a bubble. Investigate officer-level collection rates.'
+  },
+  'Expected Collections': {
+    definition: 'Scheduled repayment amounts that were due during the selected period. Represents what borrowers were supposed to pay.',
+    formula: 'SUM(principal + interest due) WHERE duedate IN period AND obligation not yet fully paid',
+    insight: 'The gap between Expected and Actual collections reveals collection efficiency. A large gap signals repayment discipline issues.',
+    action: 'Compare with actual Collections to get your Collection Rate. Target >90% collection efficiency.'
+  },
+  'Collection Rate': {
+    definition: 'Actual collections divided by expected collections, expressed as a percentage. The primary measure of repayment discipline.',
+    formula: '(Actual Collections ÷ Expected Collections) × 100',
+    insight: '≥90% is excellent, 80–90% is acceptable, <80% needs immediate attention. Rates above 100% mean borrowers are prepaying or clearing arrears.',
+    action: 'Below 80%: identify which branches and officers are dragging the rate down and launch targeted follow-up campaigns.'
+  },
+  'Active Loans': {
+    definition: 'Count of loans currently in active repayment status. Represents your live book.',
+    formula: 'COUNT(loans) WHERE loan_status = 300 (Active)',
+    insight: 'Track alongside Active Clients to understand concentration. If loans >> clients, many clients have multiple loans (cross-selling success or over-lending risk).',
+    action: 'If active loans are declining while disbursements are stable, your book is maturing well. If both decline, investigate market conditions.'
+  },
+  'PAR > 30 Days': {
+    definition: 'Portfolio at Risk — the outstanding balance of loans overdue by more than 30 days, as a percentage of total portfolio outstanding.',
+    formula: '(Outstanding balance of loans >30 days overdue ÷ Total portfolio outstanding) × 100',
+    insight: 'The most critical risk metric in microfinance. Industry benchmark: <5% is healthy, 5–10% is elevated, >10% is critical. Higher PAR means higher potential write-offs.',
+    action: 'Above 5%: drill into branch-level PAR to find concentration. Investigate individual officers with PAR >20%. Consider tightening new loan approvals.'
+  },
+  'PAR > 90 Days': {
+    definition: 'Portfolio at Risk beyond 90 days — the UMRA regulatory provisioning trigger. Loans in this bucket require 100% provisioning under Bank of Uganda guidelines.',
+    formula: '(Outstanding balance of loans >90 days overdue ÷ Total portfolio outstanding) × 100',
+    insight: 'Any loan in PAR90 is at high risk of write-off. Even a small PAR90 rate (2–3%) represents significant capital at risk. Regulatory provisioning requirements directly impact profitability and capital adequacy.',
+    action: 'Immediately escalate PAR90 accounts to senior management and legal team. Initiate structured recovery or rescheduling. Ensure provisioning is reflected in financial statements before next board meeting.'
+  },
+  'Avg Loan Size': {
+    definition: 'Average principal disbursed per loan during the selected period. Indicates your typical borrower segment.',
+    formula: 'SUM(principal_disbursed) ÷ COUNT(loans disbursed) for the period',
+    insight: 'Rising average loan size can mean client graduation (good) or concentration risk (fewer, larger loans). Falling can mean more first-time borrowers or smaller products.',
+    action: 'Compare across branches — large variance may indicate different market segments or approval inconsistencies.'
+  },
+  'Customer Retention': {
+    definition: 'Percentage of clients who have taken more than one loan. Measures repeat business and client loyalty.',
+    formula: '(Clients with ≥2 loans ÷ Total distinct clients) × 100',
+    insight: 'High retention (>60%) means clients trust your products and pricing. Low retention may signal competitor pressure, poor service, or product mismatch.',
+    action: 'Below 50%: survey churned clients. Above 70%: consider loyalty pricing or graduated loan sizes.'
+  },
+  'Overdue Amount': {
+    definition: 'Total amount of scheduled repayments that are past due within the selected period. Shows immediate arrears pressure.',
+    formula: 'SUM(principal + interest due) WHERE duedate IN period AND duedate < TODAY AND not fully paid',
+    insight: 'This is money that should have been collected but wasn\'t. Rising overdue signals collection bottlenecks or borrower distress.',
+    action: 'Cross-reference with officer performance — overdue often concentrates in specific portfolios. Prioritize recovery on largest overdue balances.'
+  }
+};
+
+function explainKPI(btn) {
+  const card = btn.closest('.metric-card');
+  if (!card) return;
+
+  // Toggle existing popover off
+  const existing = card.querySelector('.kpi-popover');
+  if (existing) { existing.remove(); card.classList.remove('popover-open'); return; }
+
+  // Close any other open popovers
+  document.querySelectorAll('.kpi-popover').forEach(p => { p.closest('.metric-card')?.classList.remove('popover-open'); p.remove(); });
+
+  const title = card.querySelector('.metric-title')?.textContent || '';
+  const value = card.querySelector('.metric-value')?.textContent || '';
+  const changeEl = card.querySelector('.metric-change');
+  const changeText = changeEl ? changeEl.textContent.trim() : '';
+
+  const kpi = KPI_DEFINITIONS[title];
+  if (!kpi) { showToast('No definition for: ' + title, 'info', 2000); return; }
+
+  // Build context-aware note based on current value
+  let contextNote = '';
+  if (title === 'PAR > 30 Days' && value !== '—') {
+    const parVal = parseFloat(value);
+    if (parVal > 10) contextNote = `<div style="margin-top:.5rem;padding:.4rem .6rem;border-radius:8px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);color:#fca5a5;font-size:.72rem"><strong>⚠ Critical:</strong> Current PAR of ${value} exceeds the 10% threshold. Immediate intervention required.</div>`;
+    else if (parVal > 5) contextNote = `<div style="margin-top:.5rem;padding:.4rem .6rem;border-radius:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:#fcd34d;font-size:.72rem"><strong>⚡ Elevated:</strong> PAR at ${value} is above the 5% benchmark. Monitor closely.</div>`;
+    else contextNote = `<div style="margin-top:.5rem;padding:.4rem .6rem;border-radius:8px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);color:var(--accent-light);font-size:.72rem"><strong>✓ Healthy:</strong> PAR at ${value} is within acceptable range.</div>`;
+  }
+  if (title === 'Collection Rate' && value !== '—') {
+    const rate = parseFloat(value);
+    if (rate >= 90) contextNote = `<div style="margin-top:.5rem;padding:.4rem .6rem;border-radius:8px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);color:var(--accent-light);font-size:.72rem"><strong>✓ Excellent:</strong> ${value} collection efficiency is above the 90% target.</div>`;
+    else if (rate >= 80) contextNote = `<div style="margin-top:.5rem;padding:.4rem .6rem;border-radius:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:#fcd34d;font-size:.72rem"><strong>⚡ Acceptable:</strong> ${value} is close to target. Push for 90%+.</div>`;
+    else contextNote = `<div style="margin-top:.5rem;padding:.4rem .6rem;border-radius:8px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);color:#fca5a5;font-size:.72rem"><strong>⚠ Below target:</strong> ${value} collection rate needs attention.</div>`;
+  }
+
+  const popover = document.createElement('div');
+  popover.className = 'kpi-popover';
+  popover.innerHTML = `
+    <button class="kpi-popover-close" onclick="closeExpandedPopover(this.closest('.metric-card'))">✕</button>
+    <div class="kpi-popover-title">${title}</div>
+    <div style="margin-bottom:.5rem">${kpi.definition}</div>
+    <div style="font-size:.72rem;padding:.35rem .6rem;border-radius:8px;background:var(--surface-overlay);color:var(--text-secondary);margin-bottom:.5rem;font-family:monospace">${kpi.formula}</div>
+    <div><strong style="color:var(--accent-light);font-size:.72rem">INSIGHT:</strong> ${kpi.insight}</div>
+    ${contextNote}
+    ${value !== '—' ? `<div style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:.7rem;color:var(--text-tertiary)">Current: <strong style="color:var(--text-primary)">${value}</strong>${changeText ? ' · ' + changeText : ''}</span>
+      <button onclick="deepExplainKPI(this,'${title.replace(/'/g,"\\'")}')" style="font-size:.68rem;padding:.25rem .5rem;border-radius:6px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer;transition:all .15s" onmouseover="this.style.background='var(--accent)';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='var(--accent)'">AI Deep Dive</button>
+    </div>` : ''}
+  `;
+  card.classList.add('popover-open');
+  card.appendChild(popover);
+
+  // Auto-close after 45s
+  setTimeout(() => { if (popover.parentElement) { popover.remove(); card.classList.remove('popover-open'); } }, 45000);
+}
+
+/* === Shared deep-dive helpers === */
+/* Blur all dashboard cards EXCEPT the given one */
+function applyDeepBlur(exceptCard) {
+  document.querySelectorAll('.metric-card, .chart-card, .table-card, .header, .header-controls, .metrics-tab-bar, .vvv-signature, .alert-banner').forEach(el => {
+    if (el !== exceptCard && !exceptCard?.contains(el) && !el.contains(exceptCard)) {
+      el.classList.add('deep-blur');
+    }
+  });
+  // Click-catcher overlay (transparent, no backdrop-filter)
+  const overlay = document.createElement('div');
+  overlay.className = 'page-blur-overlay';
+  overlay.onclick = () => {
+    // Find and close whatever is open
+    const kpiOpen = document.querySelector('.metric-card.popover-open');
+    if (kpiOpen) closeExpandedPopover(kpiOpen);
+    closeSidePanel();
+  };
+  document.body.appendChild(overlay);
+}
+function removeDeepBlur() {
+  document.querySelectorAll('.deep-blur').forEach(el => el.classList.remove('deep-blur'));
+  document.querySelectorAll('.page-blur-overlay').forEach(o => o.remove());
+}
+
+// AI-powered deep explanation for KPI cards — replaces explain popover below the card
+async function deepExplainKPI(triggerBtn, kpiName) {
+  const card = triggerBtn.closest('.metric-card');
+  if (!card) return;
+  const value = card.querySelector('.metric-value')?.textContent || '';
+  const changeText = card.querySelector('.metric-change')?.textContent || '';
+
+  triggerBtn.textContent = 'Loading...';
+  triggerBtn.disabled = true;
+
+  try {
+    const r = await fetch(`${API_BASE}/api/nova/ai-explain-kpi`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kpiName, currentValue: value, previousValue: changeText, period: currentPeriod, branch: currentBranch })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'AI explain failed');
+
+    // Replace the explain popover with the deep-dive content, still below the card
+    const popover = card.querySelector('.kpi-popover');
+    if (popover) {
+      popover.innerHTML = `
+        <button class="kpi-popover-close" onclick="closeExpandedPopover(this.closest('.metric-card'))">✕</button>
+        <div class="kpi-popover-title">${kpiName}</div>
+        <div style="margin-bottom:.5rem;font-size:.78rem;color:var(--text-secondary)">Current: <strong style="color:var(--text-primary)">${value}</strong>${changeText ? ' · ' + changeText : ''}</div>
+        <div style="border-top:1px solid var(--border-color);padding-top:.7rem">
+          <div class="kpi-popover-title" style="color:var(--accent-blue)">AI Analysis</div>
+          ${renderMarkdown(d.explanation)}
+        </div>
+      `;
+      // Widen the popover across the page, clamped to container
+      popover.classList.add('expanded');
+      clampPopoverInView(card, popover);
+      // Blur everything except this card
+      applyDeepBlur(card);
+      card.classList.add('above-blur');
+    }
+  } catch(e) {
+    triggerBtn.textContent = 'Failed';
+    setTimeout(() => { triggerBtn.textContent = 'AI Deep Dive'; triggerBtn.disabled = false; }, 2000);
+  }
+}
+
+/* Widen expanded popover across the page, clamped within .container */
+function clampPopoverInView(card, popover) {
+  if (window.innerWidth <= 768) return;
+  const container = document.querySelector('.container');
+  if (!container) return;
+  const cardRect = card.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  // Use most of the container width (up to 90%) for a comfortable reading width
+  const desiredWidth = Math.min(containerRect.width * 0.85, 900);
+  const cardCenter = cardRect.left + cardRect.width / 2;
+  let popLeft = cardCenter - desiredWidth / 2;
+  let popRight = cardCenter + desiredWidth / 2;
+  if (popLeft < containerRect.left + 10) popLeft = containerRect.left + 10;
+  if (popRight > containerRect.right - 10) popRight = containerRect.right - 10;
+  popover.style.left = (popLeft - cardRect.left) + 'px';
+  popover.style.right = (cardRect.right - popRight) + 'px';
+  popover.style.width = 'auto';
+}
+
+function closeExpandedPopover(card) {
+  // Close KPI popovers
+  if (card) {
+    const popover = card.querySelector('.kpi-popover');
+    if (popover) popover.remove();
+    card.classList.remove('popover-open', 'above-blur');
+  }
+  removeDeepBlur();
+}
+
+/* == CHART EXPLANATIONS == */
+const CHART_DEFINITIONS = {
+  'Disbursements & Collections Trend': {
+    what: 'Bar chart showing daily or periodic disbursement and collection amounts side by side for the selected time range.',
+    reading: 'Blue bars represent new loan disbursements (money going out). Green bars represent collections/repayments (money coming in). When green consistently exceeds blue, cash flow is positive.',
+    insight: 'Look for patterns: are collections keeping pace with disbursements? A growing gap where disbursements exceed collections signals potential liquidity strain. Seasonal dips (holidays, harvest cycles) are normal — sustained declines are not.',
+    action: 'If collections trail disbursements for 3+ consecutive periods, review loan officer follow-up intensity and consider slowing new approvals until collection rates recover.'
+  },
+  'Collections vs Target': {
+    what: 'Gauge showing what percentage of scheduled repayments were actually collected during the period.',
+    reading: 'The arc fills based on achievement percentage. Green (≥90%) = excellent, Blue (≥80%) = on track, Amber (≥50%) = moderate, Red (<50%) = low. The figures below show actual collected vs target due.',
+    insight: 'This is your single most important operational metric. Below 80% means borrowers are falling behind on schedule. Above 100% means prepayments or arrears recovery is happening.',
+    action: 'Below 85%: identify which branches or officers are missing targets. Run a daily reconciliation campaign focused on the shortfall amount.'
+  },
+  'Product Mix': {
+    what: 'Doughnut chart breaking down disbursements by loan product type for the selected period.',
+    reading: 'Each segment represents a loan product. Larger segments mean more lending volume in that product. The legend shows each product\'s share as a percentage.',
+    insight: 'Concentration in one product (>60%) creates risk — if that product underperforms, the whole portfolio suffers. A healthy mix has 2-3 products each contributing 20-40%.',
+    action: 'If one product dominates, assess whether it\'s by design (core product) or drift (officers defaulting to familiar products). Promote underrepresented products through officer incentives.'
+  },
+  'Collections by Day': {
+    what: 'Bar chart showing average daily collection amounts across the week, calculated from the last 90 days of data.',
+    reading: 'Taller bars mean higher average collections on that day. The grid below shows exact amounts and transaction counts per day.',
+    insight: 'Most MFIs see peaks on Monday/Tuesday (start of week follow-ups) and dips on weekends. An unusually low day may indicate staffing gaps or market day conflicts.',
+    action: 'Schedule field visits and collection calls on your weakest days. If Friday/Saturday are low, consider incentivizing end-of-week collections with officer bonuses.'
+  },
+  'PAR 30 Trend': {
+    what: 'Line chart tracking Portfolio at Risk (>30 days overdue) as a percentage over the last 6 months.',
+    reading: 'The red line shows monthly PAR rate. The dashed green line marks the 5% institutional target. Points above the dashed line indicate months where risk exceeded acceptable levels.',
+    insight: 'A rising PAR trend is the most dangerous signal in microfinance — it means delinquency is growing faster than the portfolio. Even if the current rate is acceptable, an upward slope demands attention.',
+    action: 'If PAR is trending up: (1) freeze disbursements to high-PAR branches, (2) launch a 30-day recovery campaign on the 31-60 day aging bucket, (3) review the credit assessment process for recently disbursed loans.'
+  },
+  'Branch Performance': {
+    what: 'Horizontal bar chart comparing disbursement and collection volumes across the top branches.',
+    reading: 'Blue bars show how much each branch disbursed. Green bars show how much was collected. Branches where green exceeds blue are net cash-positive.',
+    insight: 'Compare the ratio, not just the absolute amounts. A small branch with 2:1 collections-to-disbursements is performing better than a large branch at 0.8:1. Look for branches where disbursements far exceed collections — they may be growing too fast.',
+    action: 'Rank branches by collection efficiency (collections ÷ disbursements). Bottom-ranked branches need management review. Top-ranked branches can share best practices.'
+  },
+  'Arrears Aging': {
+    what: 'Bar chart breaking down overdue loans into aging buckets: 1-30 days, 31-60 days, 61-90 days, and 90+ days.',
+    reading: 'Each bar represents the total outstanding amount in that aging bucket. The color intensifies with age — darker red means longer overdue and higher write-off risk. The grid below shows loan counts and amounts per bucket.',
+    insight: 'A healthy portfolio has most arrears in the 1-30 day bucket (early-stage, recoverable). Migration from 1-30 into 31-60 and beyond signals that early intervention is failing. The 90+ bucket represents potential write-offs.',
+    action: '1-30 days: SMS/call reminders. 31-60 days: officer field visits. 61-90 days: restructuring conversations. 90+ days: escalate to recovery team or consider write-off provisioning.'
+  },
+  'Loan Officer Leaderboard': {
+    what: 'Ranked table of all loan officers showing their disbursements, collections, expected amounts, overdue balances, collection rate, PAR, and composite performance score.',
+    reading: 'Sortable by any column — click the tabs above to re-rank. Green collection rates (≥90%) indicate strong performers. Red PAR values (>10%) flag officers whose portfolios need urgent attention. The Score column is a weighted composite of collection efficiency, portfolio quality, and volume.',
+    insight: 'Focus on the gap between top and bottom performers. If the top 3 officers collect 3x more than the bottom 3, it signals a training or territory assignment issue. Officers with high disbursements but low collection rates may be approving risky loans to hit volume targets.',
+    action: 'Pair low-performers with high-performers for field mentoring. Officers with PAR >20% should be suspended from new disbursements until their portfolio recovers. Recognize top performers publicly to reinforce good practices.'
+  },
+  'Branch Summary': {
+    what: 'Table summarizing each branch\'s key metrics: disbursements, collections, active loans, expected repayments, overdue amounts, collection rate, and PAR.',
+    reading: 'Each row is a branch. Compare Collection Rate and PAR columns across branches to identify strong vs struggling locations. Click any row to drill into that branch\'s officer-level details.',
+    insight: 'Branch performance variation reveals management quality differences. Branches with high disbursements but low collection rates are growing unsustainably. Branches with low PAR and high collection rates are your operational models.',
+    action: 'Bottom-ranked branches need site visits and management review. Transfer best practices from top branches. If PAR diverges sharply between branches, investigate whether credit policies are being applied consistently.'
+  }
+};
+
+function explainChart(btn) {
+  const card = btn.closest('.chart-card') || btn.closest('.table-card');
+  if (!card) return;
+
+  // Toggle existing panel off
+  const existingId = card.dataset.panelId;
+  if (existingId) { closeSidePanel(existingId); return; }
+
+  // Close any other open panels and popovers
+  closeSidePanel();
+  document.querySelectorAll('.kpi-popover').forEach(p => { p.closest('.chart-card,.metric-card,.table-card')?.classList.remove('popover-open'); p.remove(); });
+
+  const title = card.querySelector('.chart-title')?.textContent || card.querySelector('.table-title')?.textContent || '';
+  const chart = CHART_DEFINITIONS[title];
+  if (!chart) { showToast('No definition for: ' + title, 'info', 2000); return; }
+
+  // Create floating panel outside the card, appended to body
+  const panel = document.createElement('div');
+  const panelId = 'sp_' + Date.now();
+  panel.id = panelId;
+  panel.className = 'side-explain-panel';
+  panel.dataset.cardId = card.id || '';
+  panel.innerHTML = `
+    <button class="kpi-popover-close" onclick="closeSidePanel('${panelId}')">✕</button>
+    <div class="kpi-popover-title">${title}</div>
+    <div style="margin-bottom:.5rem"><strong style="color:var(--accent-light);font-size:.72rem">WHAT:</strong> ${chart.what}</div>
+    <div style="margin-bottom:.5rem"><strong style="color:var(--accent-blue);font-size:.72rem">HOW TO READ:</strong> ${chart.reading}</div>
+    <div><strong style="color:var(--accent-purple);font-size:.72rem">INSIGHT:</strong> ${chart.insight}</div>
+    <div style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid var(--border-color);text-align:right">
+      <button onclick="deepExplainChart(this,'${title.replace(/'/g,"\\'")}','${panelId}')" style="font-size:.68rem;padding:.25rem .5rem;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:var(--text-secondary);cursor:pointer;transition:all .15s" onmouseover="this.style.background='var(--accent)';this.style.color='#fff';this.style.borderColor='var(--accent)'" onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.color='var(--text-secondary)';this.style.borderColor='rgba(255,255,255,.15)'">AI Deep Dive</button>
+    </div>
+  `;
+  document.body.appendChild(panel);
+  card.dataset.panelId = panelId;
+
+  // Position panel next to the card
+  positionSidePanel(card, panel);
+
+  // Reposition on scroll/resize
+  const reposition = () => positionSidePanel(card, panel);
+  window.addEventListener('scroll', reposition, {passive:true});
+  window.addEventListener('resize', reposition);
+  panel._cleanup = () => { window.removeEventListener('scroll', reposition); window.removeEventListener('resize', reposition); };
+
+  // Auto-close after 60s
+  setTimeout(() => { if (panel.parentElement) closeSidePanel(panelId); }, 60000);
+}
+
+/* Position the floating panel next to the card */
+function positionSidePanel(card, panel) {
+  const r = card.getBoundingClientRect();
+  const pw = panel.offsetWidth || 340;
+  const gap = 10;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  // Prefer right side; if not enough room, go left
+  let left;
+  if (r.right + gap + pw < vw - 10) {
+    left = r.right + gap;
+    panel.classList.remove('from-right');
+  } else if (r.left - gap - pw > 10) {
+    left = r.left - gap - pw;
+    panel.classList.add('from-right');
+  } else {
+    // Fallback: align to right edge of viewport
+    left = vw - pw - 10;
+    panel.classList.remove('from-right');
+  }
+
+  // Vertical: align top with card, but clamp to viewport
+  let top = Math.max(10, Math.min(r.top, vh - panel.offsetHeight - 10));
+
+  panel.style.left = left + 'px';
+  panel.style.top = top + 'px';
+}
+
+function closeSidePanel(panelId) {
+  if (panelId) {
+    const panel = document.getElementById(panelId);
+    if (panel) {
+      if (panel._cleanup) panel._cleanup();
+      panel.remove();
+    }
+    // Clear card reference and remove above-blur
+    document.querySelectorAll('[data-panel-id="' + panelId + '"]').forEach(c => { c.classList.remove('above-blur'); delete c.dataset.panelId; });
+  } else {
+    // Close all panels
+    document.querySelectorAll('.side-explain-panel').forEach(p => {
+      if (p._cleanup) p._cleanup();
+      p.remove();
+    });
+    document.querySelectorAll('[data-panel-id]').forEach(c => { c.classList.remove('above-blur'); delete c.dataset.panelId; });
+  }
+  removeDeepBlur();
+}
+
+// AI Deep Dive for charts/tables — expands the floating side panel
+async function deepExplainChart(triggerBtn, chartTitle, panelId) {
+  triggerBtn.textContent = 'Loading...';
+  triggerBtn.disabled = true;
+
+  try {
+    const r = await fetch(`${API_BASE}/api/nova/ai-explain-kpi`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kpiName: chartTitle, currentValue: 'See chart data', previousValue: '', period: currentPeriod, branch: currentBranch })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'AI explain failed');
+
+    const panel = document.getElementById(panelId);
+    if (panel) {
+      const aiDiv = document.createElement('div');
+      aiDiv.style.cssText = 'margin-top:.8rem;padding-top:.7rem;border-top:1px solid var(--border-color)';
+      aiDiv.innerHTML = `<div class="kpi-popover-title" style="color:var(--accent-blue)">AI Analysis</div>${renderMarkdown(d.explanation)}`;
+      panel.appendChild(aiDiv);
+      triggerBtn.parentElement.remove();
+      // Expand panel; blur everything except source card
+      requestAnimationFrame(() => {
+        const srcCard = document.querySelector('[data-panel-id="' + panelId + '"]');
+        panel.classList.add('deep-dive');
+        applyDeepBlur(srcCard);
+        if (srcCard) srcCard.classList.add('above-blur');
+      });
+    }
+  } catch(e) {
+    triggerBtn.textContent = 'Failed';
+    setTimeout(() => { triggerBtn.textContent = 'AI Deep Dive'; triggerBtn.disabled = false; }, 2000);
+  }
+}
+
+/* == AI QUERY CONSOLE == */
+function setAIQuery(text) {
+  document.getElementById('aiQueryInput').value = text;
+}
+
+async function runAIQuery() {
+  const input = document.getElementById('aiQueryInput');
+  const question = input.value.trim();
+  if (!question) return;
+
+  const btn = document.getElementById('aiQueryBtn');
+  const result = document.getElementById('aiQueryResult');
+  btn.disabled = true; btn.classList.add('loading');
+  result.style.display = 'none';
+
+  try {
+    const r = await fetch(`${API_BASE}/api/nova/ai-query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Query failed');
+
+    // Summary
+    document.getElementById('aiQuerySummary').innerHTML = renderMarkdown(d.summary || '');
+    document.getElementById('aiQuerySQL').textContent = d.sql || '';
+
+    // Table
+    const head = document.getElementById('aiQueryHead');
+    const body = document.getElementById('aiQueryBody');
+    head.innerHTML = ''; body.innerHTML = '';
+
+    if (d.data && d.data.length > 0) {
+      const cols = Object.keys(d.data[0]);
+      head.innerHTML = '<tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
+      body.innerHTML = d.data.slice(0, 50).map(row =>
+        '<tr>' + cols.map(c => {
+          const v = row[c];
+          return `<td>${v == null ? '' : v}</td>`;
+        }).join('') + '</tr>'
+      ).join('');
+    } else {
+      body.innerHTML = '<tr><td class="empty-state">No results</td></tr>';
+    }
+
+    if (d.totalRows > 50) {
+      document.getElementById('aiQuerySummary').innerHTML += `<div style="font-size:.68rem;color:var(--text-tertiary);margin-top:.4rem">Showing 50 of ${d.totalRows} rows</div>`;
+    }
+
+    result.style.display = 'block';
+    showToast('Query complete', 'success', 2000);
+  } catch(e) {
+    showToast('AI Query: ' + e.message, 'error', 4000);
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading');
+  }
+}
+
+/* == EVENTS == */
 document.querySelectorAll('.period-btn').forEach(b=>{b.addEventListener('click',()=>{
-  document.querySelectorAll('.period-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');currentPeriod=b.dataset.period;loadAll()})});
+  document.querySelectorAll('.period-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  currentPeriod=b.dataset.period;
+  if(currentPeriod==='custom'){setDateRangeVisible(true);return;}
+  currentStart=null;currentEnd=null;setDateRangeVisible(false);loadAll()})});
 document.getElementById('branchFilter').addEventListener('change',e=>{
   currentBranch=e.target.value;
   const isFiltered=currentBranch!=='all';
@@ -915,7 +2778,58 @@ document.getElementById('branchClearBtn').addEventListener('click',()=>{
   document.getElementById('branchClearBtn').style.display='none';
   currentBranch='all';showToast('Branch: All','info',2000);loadAll();
 });
+document.getElementById('dateApply').addEventListener('click',()=>{
+  const s=document.getElementById('dateStart').value;
+  const e=document.getElementById('dateEnd').value;
+  if(!s||!e){showToast('Select start and end dates','info',2000);return;}
+  if(s>e){showToast('Start date must be before end date','error',3000);return;}
+  currentStart=s;currentEnd=e;loadAll();
+});
+document.getElementById('dateClear').addEventListener('click',()=>{
+  document.getElementById('dateStart').value='';
+  document.getElementById('dateEnd').value='';
+  currentStart=null;currentEnd=null;
+  document.querySelectorAll('.period-btn').forEach(x=>x.classList.remove('active'));
+  const def=document.querySelector('.period-btn[data-period="month"]');if(def){def.classList.add('active');currentPeriod='month'}
+  setDateRangeVisible(false);loadAll();
+});
+document.getElementById('officerTableBody').addEventListener('click',e=>{
+  const row=e.target.closest('tr[data-officer-id]');if(!row)return;
+  openOfficerModal(row.dataset.officerId,row.dataset.officerName);
+});
+document.getElementById('officerModalClose').addEventListener('click',closeOfficerModal);
+document.getElementById('officerModal').addEventListener('click',e=>{if(e.target.id==='officerModal')closeOfficerModal()});
+document.getElementById('parAlertDismiss').addEventListener('click',()=>{
+  parAlertDismissed=true;document.getElementById('parAlert').classList.remove('show');
+});
 setInterval(loadAll,5*60*1000);
+
+/* ── Mobile: tap KPI card body to auto-explain ── */
+(function(){
+  var isTouchDevice=matchMedia('(hover:none)').matches||'ontouchstart' in window;
+  if(!isTouchDevice)return;
+  document.getElementById('kpiGrid').addEventListener('click',function(e){
+    var card=e.target.closest('.metric-card');
+    if(!card)return;
+    if(e.target.closest('.kpi-popover')||e.target.closest('.kpi-popover-close')||
+       e.target.closest('.drag-handle')||e.target.tagName==='CANVAS')return;
+    explainKPI(card);
+  });
+  /* Click outside any popover to close it */
+  document.addEventListener('click',function(e){
+    if(e.target.closest('.kpi-popover')||e.target.closest('.metric-card')||
+       e.target.closest('.side-explain-panel'))return;
+    document.querySelectorAll('.kpi-popover').forEach(function(p){
+      var card=p.closest('.metric-card');
+      if(card){p.remove();card.classList.remove('popover-open','above-blur');}
+    });
+    removeDeepBlur();
+  });
+})();
+
+/* ── Register Service Worker (PWA) ── */
+if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}
+
 loadAll();
 </script>
 </body>
