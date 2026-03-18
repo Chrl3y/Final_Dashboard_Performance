@@ -21,6 +21,9 @@ const {
   METABASE_PASSWORD,
   METABASE_SECRET,
   ANTHROPIC_API_KEY,
+  SHEETS_COSTS_URL,   // Google Apps Script web app URL for cost data
+  CIR_GREEN = '70',   // CIR threshold: below = profitable (green)
+  CIR_AMBER = '90',   // CIR threshold: above = loss-making (red)
   PORT          = 3000,
   CACHE_TTL,
   CACHE_TTL_SECONDS,
@@ -2072,6 +2075,318 @@ app.get('/api/nova/portfolio-outstanding', async (req, res) => {
 // ─── /api/nova/ai-status ─────────────────────────────────────────────────────
 app.get('/api/nova/ai-status', (_req, res) => {
   res.json({ success: true, configured: !!ANTHROPIC_API_KEY });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROFITABILITY MATRIX — Officer & Branch Unit Economics
+// Revenue: interest + fees actually collected (cash basis, type 3,6,9)
+// Costs:   fetched from Google Sheets (nova_staff_costs + nova_branch_costs)
+// Allocation: fixed overhead per officer as set by management in Sheets
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const SHEETS_API_URL = process.env.SHEETS_COSTS_URL || ''; // Google Apps Script web app URL
+
+// ─── Fetch costs from Google Sheets ──────────────────────────────────────────
+async function fetchCostsFromSheets(month) {
+  if (!SHEETS_API_URL) return { staff: [], branch: [] };
+  try {
+    const r = await axios.get(`${SHEETS_API_URL}?action=costs&month=${month}`, { timeout: 15000 });
+    return r.data?.data || { staff: [], branch: [] };
+  } catch (err) {
+    console.warn('[profitability] Sheets fetch failed:', err.message);
+    return { staff: [], branch: [] };
+  }
+}
+
+// ─── Period helpers for profitability (revenue window) ───────────────────────
+// Revenue = interest+fees COLLECTED in period (transaction_type_enum IN (3,6,9))
+// For YTD: Jan 1 of current year → today
+// For day/week/month: same window as collections
+function profitPeriodWhere(col, p) {
+  switch (p) {
+    case 'day':   return `DATE(${col}) = CURDATE()`;
+    case 'week':  return `YEARWEEK(${col}, 1) = YEARWEEK(CURDATE(), 1)`;
+    case 'month': return `YEAR(${col}) = YEAR(CURDATE()) AND MONTH(${col}) = MONTH(CURDATE())`;
+    case 'ytd':   return `YEAR(${col}) = YEAR(CURDATE()) AND DATE(${col}) <= CURDATE()`;
+    default:      return `YEAR(${col}) = YEAR(CURDATE()) AND MONTH(${col}) = MONTH(CURDATE())`;
+  }
+}
+
+// ─── Cost proration factor: day=1/22, week=7/22 (working days), month=1, ytd=months_elapsed/12 ─
+function costProrationFactor(p) {
+  const now = new Date();
+  switch (p) {
+    case 'day':   return 1 / 22;
+    case 'week': {
+      // days elapsed in current ISO week (Mon=1 ... today)
+      const dow = now.getDay() === 0 ? 7 : now.getDay(); // 1=Mon,7=Sun
+      return Math.min(dow, 5) / 22; // cap at 5 working days
+    }
+    case 'month': return 1;
+    case 'ytd': {
+      // months elapsed in calendar year (partial current month = 1)
+      return now.getMonth() + 1; // Jan=1 ... Dec=12
+    }
+    default: return 1;
+  }
+}
+
+// ─── GET /api/nova/profitability ──────────────────────────────────────────────
+app.get('/api/nova/profitability', async (req, res) => {
+  try {
+    const p    = req.query.period || 'month';   // day | week | month | ytd
+    const bId  = req.query.branch && req.query.branch !== 'all' ? req.query.branch : null;
+    const revW = profitPeriodWhere('mlt.created_date', p);
+    const BF   = bId ? `AND ms.office_id = ${parseInt(bId)}` : '';
+
+    // Cost month = current month (costs always entered monthly)
+    const now       = new Date();
+    const costMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const prorationFactor = costProrationFactor(p);
+
+    // Fetch costs + Mifos revenue in parallel
+    const [costsData, officerRevRows, parRows, staffCountRows] = await Promise.all([
+
+      // Google Sheets costs
+      fetchCostsFromSheets(costMonth),
+
+      // Revenue per officer: interest + fees collected (type 3=interest, 6=fees, 9=penalty)
+      // CRITICAL: use created_date for all transaction filtering
+      runSQL(`
+        SELECT
+          ms.id           AS staff_id,
+          ms.display_name AS officer_name,
+          mo.id           AS branch_id,
+          mo.name         AS branch_name,
+          COALESCE(SUM(CASE WHEN mlt.transaction_type_enum IN (3,6,9) THEN mlt.amount ELSE 0 END), 0) AS interest_fees_collected,
+          COUNT(DISTINCT mlt.loan_id) AS loans_with_income,
+          -- Portfolio outstanding (live snapshot for RoP calc)
+          COALESCE(SUM(DISTINCT CASE WHEN ml2.loan_status_id = 300
+            THEN ml2.principal_outstanding_derived ELSE 0 END), 0) AS portfolio_outstanding
+        FROM m_staff ms
+        JOIN m_office mo ON mo.id = ms.office_id
+        LEFT JOIN m_loan ml ON ml.loan_officer_id = ms.id
+        LEFT JOIN m_loan_transaction mlt
+          ON mlt.loan_id = ml.id
+          AND mlt.transaction_type_enum IN (3, 6, 9)
+          AND mlt.is_reversed = 0
+          AND ${revW}
+        LEFT JOIN m_loan ml2 ON ml2.loan_officer_id = ms.id AND ml2.loan_status_id = 300
+        WHERE ms.is_loan_officer = 1
+          AND ms.is_active = 1
+          AND mo.parent_id IS NOT NULL
+          ${BF}
+        GROUP BY ms.id, ms.display_name, mo.id, mo.name
+        HAVING loans_with_income > 0 OR portfolio_outstanding > 0
+        ORDER BY interest_fees_collected DESC
+      `),
+
+      // PAR per officer for risk-adjusted profit
+      // Method A: laa.principal_overdue_derived — validated, no inflation
+      runSQL(`
+        SELECT
+          ml.loan_officer_id AS staff_id,
+          COALESCE(SUM(laa.principal_overdue_derived), 0) AS par_overdue,
+          COALESCE(SUM(ml.principal_outstanding_derived), 0) AS par_portfolio
+        FROM m_loan ml
+        JOIN m_client mc ON mc.id = ml.client_id
+        LEFT JOIN m_loan_arrears_aging laa ON laa.loan_id = ml.id
+        WHERE ml.loan_status_id = 300
+          AND ml.loan_officer_id IS NOT NULL
+          ${bId ? `AND mc.office_id = ${parseInt(bId)}` : ''}
+        GROUP BY ml.loan_officer_id
+      `),
+
+      // Active staff count per branch (for overhead allocation cross-check)
+      runSQL(`
+        SELECT ms.office_id AS branch_id, COUNT(*) AS staff_count
+        FROM m_staff ms
+        WHERE ms.is_active = 1 AND ms.is_loan_officer = 1
+        ${bId ? `AND ms.office_id = ${parseInt(bId)}` : ''}
+        GROUP BY ms.office_id
+      `)
+    ]);
+
+    // ── Build lookup maps ──────────────────────────────────────────────────────
+    const parMap    = Object.fromEntries(parRows.map(r => [r.staff_id, r]));
+    const staffCostMap = Object.fromEntries(
+      (costsData.staff || []).map(c => [String(c.staff_id), c])
+    );
+    const branchCostMap = Object.fromEntries(
+      (costsData.branch || []).map(c => [String(c.branch_id), c])
+    );
+    const staffCountMap = Object.fromEntries(
+      staffCountRows.map(r => [String(r.branch_id), parseInt(r.staff_count) || 1])
+    );
+
+    // ── CIR thresholds (configurable) ─────────────────────────────────────────
+    const CIR_GREEN = parseFloat(process.env.CIR_GREEN || 70);
+    const CIR_AMBER = parseFloat(process.env.CIR_AMBER || 90);
+
+    // ── Build officer profitability rows ───────────────────────────────────────
+    const officerProfitability = officerRevRows.map(o => {
+      const staffId    = String(o.staff_id);
+      const branchId   = String(o.branch_id);
+      const revenue    = parseFloat(o.interest_fees_collected) || 0;
+      const portfolio  = parseFloat(o.portfolio_outstanding)   || 0;
+
+      // Costs (prorated by period)
+      const costs      = staffCostMap[staffId] || {};
+      const branchCosts= branchCostMap[branchId] || {};
+      const directCost = (
+        (parseFloat(costs.salary)       || 0) +
+        (parseFloat(costs.transport)    || 0) +
+        (parseFloat(costs.airtime)      || 0) +
+        (parseFloat(costs.insurance)    || 0) +
+        (parseFloat(costs.nssf)         || 0) +
+        (parseFloat(costs.commission)   || 0) +
+        (parseFloat(costs.other_direct) || 0)
+      ) * prorationFactor;
+
+      // Fixed overhead per officer (set by management in Sheets)
+      const fixedOverhead = (parseFloat(branchCosts.fixed_overhead_per_officer) || 0) * prorationFactor;
+      const totalCost     = directCost + fixedOverhead;
+
+      // PAR for risk adjustment
+      const parData    = parMap[o.staff_id] || {};
+      const parOverdue = parseFloat(parData.par_overdue)   || 0;
+      const parPortfolio = parseFloat(parData.par_portfolio) || 1;
+      const par30Rate  = parPortfolio > 0 ? parOverdue / parPortfolio : 0;
+
+      // Profitability metrics
+      const netProfit      = revenue - totalCost;
+      const cir            = totalCost > 0 && revenue > 0 ? (totalCost / revenue) * 100 : (totalCost > 0 ? Infinity : 0);
+      const rop            = portfolio > 0 ? (revenue / portfolio) * 100 : 0;  // annualise if needed
+      const riskAdjRevenue = revenue * (1 - par30Rate);
+      const riskAdjProfit  = riskAdjRevenue - totalCost;
+
+      // Status
+      const hasCostData    = Object.keys(costs).length > 0;
+      let status;
+      if (!hasCostData)        status = 'no-cost-data';
+      else if (netProfit > 0)  status = cir <= CIR_GREEN ? 'profitable' : 'marginal';
+      else                     status = 'loss-making';
+
+      return {
+        staffId:          parseInt(o.staff_id),
+        officerName:      o.officer_name,
+        branchId:         parseInt(o.branch_id),
+        branchName:       o.branch_name,
+        // Revenue
+        revenue,
+        portfolioOutstanding: portfolio,
+        // Costs (prorated)
+        directCost:       Math.round(directCost),
+        fixedOverhead:    Math.round(fixedOverhead),
+        totalCost:        Math.round(totalCost),
+        costBreakdown: {
+          salary:       Math.round((parseFloat(costs.salary)       || 0) * prorationFactor),
+          transport:    Math.round((parseFloat(costs.transport)    || 0) * prorationFactor),
+          airtime:      Math.round((parseFloat(costs.airtime)      || 0) * prorationFactor),
+          insurance:    Math.round((parseFloat(costs.insurance)    || 0) * prorationFactor),
+          nssf:         Math.round((parseFloat(costs.nssf)         || 0) * prorationFactor),
+          commission:   Math.round((parseFloat(costs.commission)   || 0) * prorationFactor),
+          other:        Math.round((parseFloat(costs.other_direct) || 0) * prorationFactor),
+          overhead:     Math.round(fixedOverhead),
+        },
+        // Profitability
+        netProfit:        Math.round(netProfit),
+        cir:              isFinite(cir) ? Math.round(cir * 10) / 10 : null,
+        rop:              Math.round(rop * 100) / 100,
+        riskAdjRevenue:   Math.round(riskAdjRevenue),
+        riskAdjProfit:    Math.round(riskAdjProfit),
+        par30Rate:        Math.round(par30Rate * 10000) / 100,
+        // Meta
+        hasCostData,
+        status,
+        prorationFactor,
+        costMonth,
+      };
+    });
+
+    // ── Branch rollup ──────────────────────────────────────────────────────────
+    const branchMap = {};
+    officerProfitability.forEach(o => {
+      const bid = o.branchId;
+      if (!branchMap[bid]) {
+        branchMap[bid] = {
+          branchId: bid, branchName: o.branchName,
+          revenue: 0, directCost: 0, fixedOverhead: 0, totalCost: 0,
+          netProfit: 0, riskAdjRevenue: 0, riskAdjProfit: 0,
+          portfolioOutstanding: 0, officerCount: 0, hasCostData: false,
+        };
+      }
+      const b = branchMap[bid];
+      b.revenue             += o.revenue;
+      b.directCost          += o.directCost;
+      b.fixedOverhead       += o.fixedOverhead;
+      b.totalCost           += o.totalCost;
+      b.netProfit           += o.netProfit;
+      b.riskAdjRevenue      += o.riskAdjRevenue;
+      b.riskAdjProfit       += o.riskAdjProfit;
+      b.portfolioOutstanding+= o.portfolioOutstanding;
+      b.officerCount        += 1;
+      if (o.hasCostData) b.hasCostData = true;
+    });
+
+    const branchProfitability = Object.values(branchMap).map(b => {
+      const cir = b.totalCost > 0 && b.revenue > 0 ? (b.totalCost / b.revenue) * 100 : 0;
+      const rop = b.portfolioOutstanding > 0 ? (b.revenue / b.portfolioOutstanding) * 100 : 0;
+      return {
+        ...b,
+        cir:    Math.round(cir * 10) / 10,
+        rop:    Math.round(rop * 100) / 100,
+        status: !b.hasCostData ? 'no-cost-data'
+              : b.netProfit > 0 ? (cir <= CIR_GREEN ? 'profitable' : 'marginal')
+              : 'loss-making',
+      };
+    }).sort((a, b) => b.revenue - a.revenue);
+
+    // ── Portfolio-level totals ─────────────────────────────────────────────────
+    const totals = officerProfitability.reduce((acc, o) => {
+      acc.revenue          += o.revenue;
+      acc.totalCost        += o.totalCost;
+      acc.netProfit        += o.netProfit;
+      acc.riskAdjProfit    += o.riskAdjProfit;
+      acc.portfolioOutstanding += o.portfolioOutstanding;
+      return acc;
+    }, { revenue: 0, totalCost: 0, netProfit: 0, riskAdjProfit: 0, portfolioOutstanding: 0 });
+
+    totals.cir = totals.revenue > 0 ? Math.round(totals.totalCost / totals.revenue * 1000) / 10 : 0;
+    totals.rop = totals.portfolioOutstanding > 0
+      ? Math.round(totals.revenue / totals.portfolioOutstanding * 10000) / 100 : 0;
+
+    res.json({
+      success: true,
+      period: p,
+      costMonth,
+      prorationFactor,
+      thresholds: { cirGreen: CIR_GREEN, cirAmber: CIR_AMBER },
+      totals,
+      officers:  officerProfitability,
+      branches:  branchProfitability,
+      costsLoaded: (costsData.staff || []).length > 0,
+    });
+
+  } catch (err) {
+    console.error('[profitability]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── POST /api/nova/profitability/costs ───────────────────────────────────────
+// Proxy: dashboard → this endpoint → Google Sheets (avoids CORS from browser)
+app.post('/api/nova/profitability/costs', async (req, res) => {
+  try {
+    if (!SHEETS_API_URL) return res.status(503).json({ success: false, error: 'SHEETS_COSTS_URL not configured' });
+    const r = await axios.post(SHEETS_API_URL, req.body, {
+      headers: { 'Content-Type': 'application/json' }, timeout: 15000
+    });
+    res.json(r.data);
+  } catch (err) {
+    console.error('[profitability/costs POST]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.use((_req, res) => res.status(404).json({ success: false, error: 'Not found' }));
