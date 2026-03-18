@@ -777,6 +777,19 @@
     ::-webkit-scrollbar-track{background:transparent}
     ::-webkit-scrollbar-thumb{background:var(--glass-border);border-radius:3px}
     ::-webkit-scrollbar-thumb:hover{background:var(--glass-border-hover)}
+
+    /* == PROFITABILITY MATRIX == */
+    .profit-cost-input{width:100%;padding:.35rem .5rem;border-radius:7px;border:1px solid var(--glass-border);
+      background:var(--bg-card);color:var(--text-primary);font-size:.72rem;font-family:inherit}
+    .profit-cost-input:focus{outline:none;border-color:var(--accent-orange)}
+    .profit-status{display:inline-flex;align-items:center;gap:.3rem;padding:.18rem .5rem;border-radius:6px;
+      font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+    .profit-profitable{background:var(--green-dim,rgba(34,197,94,.1));color:var(--green,#22c55e);border:1px solid rgba(34,197,94,.2)}
+    .profit-marginal{background:var(--amber-dim);color:var(--accent-orange);border:1px solid rgba(245,158,11,.2)}
+    .profit-loss{background:var(--red-dim);color:var(--accent-red);border:1px solid rgba(239,68,68,.2)}
+    .profit-nodata{background:var(--surface-overlay);color:var(--text-tertiary);border:1px solid var(--border-color)}
+    .profit-bar{height:3px;border-radius:2px;margin-top:.25rem;background:var(--surface-overlay);overflow:hidden}
+    .profit-bar-fill{height:100%;border-radius:2px;transition:width .5s ease}
   </style>
 </head>
 <body>
@@ -1374,6 +1387,170 @@
 </div>
 
   <!-- AI Query Console removed from dashboard — available in AI Insights panel -->
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       PROFITABILITY MATRIX — Officer & Branch Unit Economics
+       Directors view: Revenue vs Costs vs Net Profit per period
+       ══════════════════════════════════════════════════════════════════════ -->
+  <div class="table-card glass" id="profitabilitySection" style="margin-bottom:1rem">
+    <button class="explain-btn" onclick="explainChart(this)" title="Explain this section">?</button>
+
+    <!-- Header -->
+    <div class="table-header" style="flex-direction:column;gap:.75rem;align-items:stretch">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem">
+        <div>
+          <div class="table-title" style="display:flex;align-items:center;gap:.5rem">
+            <span style="font-size:.9rem">📊</span> Unit Profitability Matrix
+            <span id="profitCostDataBadge" style="display:none;font-size:.62rem;padding:.15rem .45rem;border-radius:5px;font-weight:700;background:rgba(245,158,11,.1);color:var(--accent-orange)">No cost data</span>
+          </div>
+          <div class="table-subtitle" id="profitSubtitle">Revenue vs costs per loan officer and branch</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <!-- Period tabs -->
+          <div class="period-selector ctrl-glass" id="profitPeriodTabs" style="border-radius:10px">
+            <button class="period-btn" data-profit-period="day"   onclick="switchProfitPeriod('day',this)">Day</button>
+            <button class="period-btn active" data-profit-period="month" onclick="switchProfitPeriod('month',this)">Month</button>
+            <button class="period-btn" data-profit-period="week"  onclick="switchProfitPeriod('week',this)">Week</button>
+            <button class="period-btn" data-profit-period="ytd"   onclick="switchProfitPeriod('ytd',this)">YTD</button>
+          </div>
+          <!-- View toggle: Officer / Branch -->
+          <div class="period-selector ctrl-glass" style="border-radius:10px">
+            <button class="period-btn active" id="profitViewOfficer" onclick="switchProfitView('officer')">Officers</button>
+            <button class="period-btn" id="profitViewBranch" onclick="switchProfitView('branch')">Branches</button>
+          </div>
+          <!-- Cost entry button (admin) -->
+          <button class="ctrl-btn ctrl-glass" onclick="toggleProfitCostPanel()" style="font-size:.7rem;color:var(--accent-orange)">⚙ Enter Costs</button>
+          <button class="export-btn" onclick="exportTable('profitOfficerBody','profitability-officers')">CSV</button>
+        </div>
+      </div>
+
+      <!-- Summary KPI strip -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.65rem" id="profitSummaryStrip">
+        <div class="arrears-band">
+          <div class="arrears-label">Total Revenue</div>
+          <div class="arrears-count" style="color:var(--accent);font-size:1.1rem" id="profitTotalRevenue">—</div>
+          <div class="arrears-amount">Interest + Fees collected</div>
+        </div>
+        <div class="arrears-band">
+          <div class="arrears-label">Total Costs</div>
+          <div class="arrears-count" style="color:var(--accent-red);font-size:1.1rem" id="profitTotalCosts">—</div>
+          <div class="arrears-amount">All staff + overhead</div>
+        </div>
+        <div class="arrears-band">
+          <div class="arrears-label">Net Profit</div>
+          <div class="arrears-count" id="profitNetProfit" style="font-size:1.1rem">—</div>
+          <div class="arrears-amount">Revenue − Costs</div>
+        </div>
+        <div class="arrears-band">
+          <div class="arrears-label">Portfolio CIR</div>
+          <div class="arrears-count" id="profitCIR" style="font-size:1.1rem">—</div>
+          <div class="arrears-amount">Cost-to-Income Ratio</div>
+        </div>
+        <div class="arrears-band">
+          <div class="arrears-label">Return on Portfolio</div>
+          <div class="arrears-count" id="profitRoP" style="font-size:1.1rem">—</div>
+          <div class="arrears-amount">Revenue / Outstanding</div>
+        </div>
+        <div class="arrears-band">
+          <div class="arrears-label">Risk-Adj Profit</div>
+          <div class="arrears-count" id="profitRiskAdj" style="font-size:1.1rem">—</div>
+          <div class="arrears-amount">PAR-adjusted net</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cost entry panel (collapsible, admin only) -->
+    <div id="profitCostPanel" style="display:none;margin:.75rem 0;padding:1rem;background:var(--bg);border:1px solid rgba(245,158,11,.25);border-radius:12px">
+      <div style="font-size:.8rem;font-weight:700;margin-bottom:.75rem;color:var(--accent-orange)">⚙ Monthly Cost Entry — <span id="profitCostMonth" style="font-family:var(--mono);font-size:.72rem"></span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem" id="profitCostForms">
+        <!-- Staff costs form -->
+        <div>
+          <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-secondary);margin-bottom:.6rem">Staff Costs (per officer)</div>
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <select id="profitCostOfficerSel" style="padding:.4rem .6rem;border-radius:8px;background:var(--bg-card);border:1px solid var(--glass-border);color:var(--text-primary);font-size:.75rem;font-family:inherit">
+              <option value="">Select officer…</option>
+            </select>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;font-size:.72rem">
+              <div><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">Salary</label><input id="pc_salary" type="number" placeholder="0" class="profit-cost-input"></div>
+              <div><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">Transport</label><input id="pc_transport" type="number" placeholder="0" class="profit-cost-input"></div>
+              <div><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">Airtime</label><input id="pc_airtime" type="number" placeholder="0" class="profit-cost-input"></div>
+              <div><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">Insurance</label><input id="pc_insurance" type="number" placeholder="0" class="profit-cost-input"></div>
+              <div><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">NSSF</label><input id="pc_nssf" type="number" placeholder="0" class="profit-cost-input"></div>
+              <div><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">Commission</label><input id="pc_commission" type="number" placeholder="0" class="profit-cost-input"></div>
+              <div style="grid-column:span 2"><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">Other Direct</label><input id="pc_other" type="number" placeholder="0" class="profit-cost-input" style="width:100%"></div>
+            </div>
+            <button onclick="submitStaffCost()" class="ctrl-btn" style="background:var(--accent-orange);color:#fff;border:none;justify-content:center;font-size:.75rem">Save Staff Cost</button>
+          </div>
+        </div>
+        <!-- Branch costs form -->
+        <div>
+          <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-secondary);margin-bottom:.6rem">Branch Costs (shared overhead)</div>
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <select id="profitCostBranchSel" style="padding:.4rem .6rem;border-radius:8px;background:var(--bg-card);border:1px solid var(--glass-border);color:var(--text-primary);font-size:.75rem;font-family:inherit">
+              <option value="">Select branch…</option>
+            </select>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;font-size:.72rem">
+              <div><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">Rent</label><input id="pb_rent" type="number" placeholder="0" class="profit-cost-input"></div>
+              <div><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">Utilities</label><input id="pb_utilities" type="number" placeholder="0" class="profit-cost-input"></div>
+              <div><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">Supplies</label><input id="pb_supplies" type="number" placeholder="0" class="profit-cost-input"></div>
+              <div><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">Fixed / Officer</label><input id="pb_overhead" type="number" placeholder="0" class="profit-cost-input"></div>
+              <div style="grid-column:span 2"><label style="color:var(--text-tertiary);display:block;margin-bottom:.2rem">Other Overhead</label><input id="pb_other" type="number" placeholder="0" class="profit-cost-input" style="width:100%"></div>
+            </div>
+            <button onclick="submitBranchCost()" class="ctrl-btn" style="background:var(--accent-blue);color:#fff;border:none;justify-content:center;font-size:.75rem">Save Branch Cost</button>
+          </div>
+        </div>
+      </div>
+      <div id="profitCostMsg" style="margin-top:.5rem;font-size:.72rem;display:none"></div>
+    </div>
+
+    <!-- Officer table -->
+    <div id="profitOfficerView">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Officer</th><th>Branch</th>
+              <th>Revenue <span style="font-weight:400;color:var(--text-tertiary)">(Int+Fees)</span></th>
+              <th>Direct Costs</th><th>Overhead</th><th>Total Cost</th>
+              <th>Net Profit</th>
+              <th>CIR %</th>
+              <th>RoP %</th>
+              <th>Risk-Adj Profit</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="profitOfficerBody">
+            <tr><td colspan="12" class="empty-state">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Branch table -->
+    <div id="profitBranchView" style="display:none">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Branch</th><th>Officers</th>
+              <th>Revenue</th><th>Total Cost</th>
+              <th>Net Profit</th><th>CIR %</th><th>RoP %</th>
+              <th>Risk-Adj Profit</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="profitBranchBody">
+            <tr><td colspan="10" class="empty-state">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="font-size:.65rem;color:var(--text-tertiary);margin-top:.6rem;font-family:var(--mono);padding-top:.5rem;border-top:1px solid var(--border-color)">
+      CIR = Cost-to-Income Ratio (lower is better · target &lt;<span id="profitCIRTarget">70</span>%) ·
+      RoP = Return on Portfolio · Risk-Adj = Revenue × (1 − PAR30%) − Costs ·
+      Costs prorated from monthly figures · Cost data from Google Sheets
+    </div>
+  </div>
 
   <!-- == BI VALUE TICKER == -->
 <div class="container">
@@ -2032,7 +2209,7 @@ async function loadAll(){
     loadKPIs(p,b), loadRetention(p,b), loadSparklines(b), loadTimeSeries(p,b),
     loadCollectionTarget(p,b), loadProducts(p,b), loadBranches(p,b),
     loadOfficers(p,b), loadArrears(b), loadDOW(), loadPARTrend(), loadBranchList(),
-    loadCollectionEfficiency(b)
+    loadCollectionEfficiency(b), loadProfitability()
   ]);
   setLoading(100);
   if(_firstLoad){
@@ -2829,6 +3006,197 @@ setInterval(loadAll,5*60*1000);
 
 /* ── Register Service Worker (PWA) ── */
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}
+
+/* ══ PROFITABILITY MATRIX ══════════════════════════════════════════════════ */
+let profitPeriod = 'month';
+let profitView   = 'officer';
+let profitData   = null;
+
+function switchProfitPeriod(p, btn) {
+  profitPeriod = p;
+  document.querySelectorAll('#profitPeriodTabs .period-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  loadProfitability();
+}
+function switchProfitView(v) {
+  profitView = v;
+  document.getElementById('profitViewOfficer').classList.toggle('active', v === 'officer');
+  document.getElementById('profitViewBranch').classList.toggle('active', v === 'branch');
+  document.getElementById('profitOfficerView').style.display = v === 'officer' ? '' : 'none';
+  document.getElementById('profitBranchView').style.display  = v === 'branch'  ? '' : 'none';
+  if (profitData) renderProfitData(profitData);
+}
+function toggleProfitCostPanel() {
+  const p = document.getElementById('profitCostPanel');
+  p.style.display = p.style.display === 'none' ? '' : 'none';
+  if (p.style.display !== 'none') populateCostSelectors();
+}
+function populateCostSelectors() {
+  const now = new Date();
+  document.getElementById('profitCostMonth').textContent =
+    now.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+  const oSel = document.getElementById('profitCostOfficerSel');
+  if (profitData?.officers?.length && oSel.options.length <= 1) {
+    profitData.officers.forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.staffId; opt.dataset.branchId = o.branchId; opt.dataset.branchName = o.branchName;
+      opt.textContent = `${o.officerName} (${o.branchName})`; oSel.appendChild(opt);
+    });
+  }
+  const bSel = document.getElementById('profitCostBranchSel');
+  if (profitData?.branches?.length && bSel.options.length <= 1) {
+    profitData.branches.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b.branchId; opt.dataset.branchName = b.branchName;
+      opt.textContent = b.branchName; bSel.appendChild(opt);
+    });
+  }
+}
+async function submitStaffCost() {
+  const oSel = document.getElementById('profitCostOfficerSel');
+  if (!oSel.value) { showToast('Select an officer first', 'info', 2000); return; }
+  const sel = oSel.options[oSel.selectedIndex];
+  const now = new Date();
+  const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const body = { action:'upsert_staff', staff_id:parseInt(oSel.value), officer_name:sel.textContent.split(' (')[0],
+    branch_id:sel.dataset.branchId, branch_name:sel.dataset.branchName, month,
+    salary:parseFloat(document.getElementById('pc_salary').value)||0,
+    transport:parseFloat(document.getElementById('pc_transport').value)||0,
+    airtime:parseFloat(document.getElementById('pc_airtime').value)||0,
+    insurance:parseFloat(document.getElementById('pc_insurance').value)||0,
+    nssf:parseFloat(document.getElementById('pc_nssf').value)||0,
+    commission:parseFloat(document.getElementById('pc_commission').value)||0,
+    other_direct:parseFloat(document.getElementById('pc_other').value)||0 };
+  try {
+    const r = await fetch(`${API_BASE}/api/nova/profitability/costs`,
+      { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const d = await r.json(); if (!d.success) throw new Error(d.error);
+    showProfitMsg('✓ Staff cost saved for '+month, 'var(--accent)'); loadProfitability();
+  } catch(e) { showProfitMsg('Error: '+e.message, 'var(--accent-red)'); }
+}
+async function submitBranchCost() {
+  const bSel = document.getElementById('profitCostBranchSel');
+  if (!bSel.value) { showToast('Select a branch first', 'info', 2000); return; }
+  const now = new Date();
+  const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const body = { action:'upsert_branch', branch_id:parseInt(bSel.value),
+    branch_name:bSel.options[bSel.selectedIndex].dataset.branchName||'', month,
+    rent:parseFloat(document.getElementById('pb_rent').value)||0,
+    utilities:parseFloat(document.getElementById('pb_utilities').value)||0,
+    supplies:parseFloat(document.getElementById('pb_supplies').value)||0,
+    fixed_overhead_per_officer:parseFloat(document.getElementById('pb_overhead').value)||0,
+    other_overhead:parseFloat(document.getElementById('pb_other').value)||0 };
+  try {
+    const r = await fetch(`${API_BASE}/api/nova/profitability/costs`,
+      { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const d = await r.json(); if (!d.success) throw new Error(d.error);
+    showProfitMsg('✓ Branch cost saved for '+month, 'var(--accent-blue)'); loadProfitability();
+  } catch(e) { showProfitMsg('Error: '+e.message, 'var(--accent-red)'); }
+}
+function showProfitMsg(msg, color) {
+  const el = document.getElementById('profitCostMsg');
+  el.textContent = msg; el.style.color = color; el.style.display = '';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+function profitStatusBadge(status) {
+  const map = { 'profitable':['PROFITABLE','profit-profitable','🟢'],
+    'marginal':['MARGINAL','profit-marginal','🟡'],
+    'loss-making':['LOSS-MAKING','profit-loss','🔴'],
+    'no-cost-data':['NO COSTS','profit-nodata','⚪'] };
+  const [label,cls,icon] = map[status]||['—','profit-nodata','—'];
+  return `<span class="profit-status ${cls}">${icon} ${label}</span>`;
+}
+function profitCirColor(cir) {
+  if (cir===null||cir===undefined) return 'var(--text-tertiary)';
+  const g = parseFloat(document.getElementById('profitCIRTarget')?.textContent||'70');
+  return cir<=g?'var(--accent)':cir<=g+20?'var(--accent-orange)':'var(--accent-red)';
+}
+function renderProfitData(d) {
+  profitData = d;
+  const t = d.totals||{};
+  const netColor = (t.netProfit||0)>=0?'var(--accent)':'var(--accent-red)';
+  document.getElementById('profitTotalRevenue').textContent = fmtUGX(t.revenue||0);
+  document.getElementById('profitTotalCosts').textContent   = fmtUGX(t.totalCost||0);
+  document.getElementById('profitNetProfit').textContent    = fmtUGX(t.netProfit||0);
+  document.getElementById('profitNetProfit').style.color    = netColor;
+  document.getElementById('profitCIR').textContent          = fmtPct(t.cir||0);
+  document.getElementById('profitCIR').style.color          = profitCirColor(t.cir);
+  document.getElementById('profitRoP').textContent          = fmtPct(t.rop||0);
+  const raColor = (t.riskAdjProfit||0)>=0?'var(--accent)':'var(--accent-red)';
+  document.getElementById('profitRiskAdj').textContent      = fmtUGX(t.riskAdjProfit||0);
+  document.getElementById('profitRiskAdj').style.color      = raColor;
+  if (d.thresholds) document.getElementById('profitCIRTarget').textContent = d.thresholds.cirGreen;
+  const pLabel = {day:'Today',week:'This Week',month:'This Month',ytd:'Year to Date'}[profitPeriod]||profitPeriod;
+  const costNote = d.costsLoaded ? `Cost data: ${d.costMonth}` : '⚠ No cost data — click ⚙ Enter Costs';
+  document.getElementById('profitSubtitle').textContent = `${pLabel} · ${costNote}`;
+  document.getElementById('profitCostDataBadge').style.display = d.costsLoaded ? 'none' : '';
+  // Officer table
+  const maxRev = Math.max(...(d.officers||[]).map(o=>o.revenue),1);
+  document.getElementById('profitOfficerBody').innerHTML = !(d.officers||[]).length
+    ? '<tr><td colspan="12" class="empty-state">No officer revenue data for this period</td></tr>'
+    : d.officers.map((o,i) => {
+        const nc=o.netProfit>=0?'var(--accent)':'var(--accent-red)';
+        const rc=o.riskAdjProfit>=0?'var(--accent)':'var(--accent-red)';
+        return `<tr style="cursor:pointer" onclick="showProfitBreakdown(${i})">
+          <td><span class="rank-badge rank-${i<3?i+1:'n'}">${i+1}</span></td>
+          <td><div class="officer-name">${o.officerName}</div></td>
+          <td><span class="officer-branch">${o.branchName}</span></td>
+          <td style="color:var(--accent)">${fmtUGX(o.revenue)}<div class="profit-bar"><div class="profit-bar-fill" style="width:${Math.round(o.revenue/maxRev*100)}%;background:var(--accent)"></div></div></td>
+          <td style="color:var(--text-secondary);font-size:.78rem">${o.hasCostData?fmtUGX(o.directCost):'—'}</td>
+          <td style="color:var(--text-secondary);font-size:.78rem">${o.hasCostData?fmtUGX(o.fixedOverhead):'—'}</td>
+          <td style="color:var(--accent-red);font-size:.78rem">${o.hasCostData?fmtUGX(o.totalCost):'—'}</td>
+          <td style="color:${nc};font-weight:700">${o.hasCostData?fmtUGX(o.netProfit):'—'}</td>
+          <td style="color:${profitCirColor(o.cir)};font-weight:700">${o.cir!==null?fmtPct(o.cir):'—'}</td>
+          <td style="color:var(--accent-blue);font-size:.78rem">${fmtPct(o.rop)}</td>
+          <td style="color:${rc};font-size:.78rem">${o.hasCostData?fmtUGX(o.riskAdjProfit):'—'}</td>
+          <td>${profitStatusBadge(o.status)}</td></tr>`;
+      }).join('');
+  // Branch table
+  const maxBR = Math.max(...(d.branches||[]).map(b=>b.revenue),1);
+  document.getElementById('profitBranchBody').innerHTML = !(d.branches||[]).length
+    ? '<tr><td colspan="10" class="empty-state">No branch revenue data</td></tr>'
+    : d.branches.map((b,i) => {
+        const nc=b.netProfit>=0?'var(--accent)':'var(--accent-red)';
+        const rc=b.riskAdjProfit>=0?'var(--accent)':'var(--accent-red)';
+        return `<tr>
+          <td><span class="rank-badge rank-${i<3?i+1:'n'}">${i+1}</span></td>
+          <td style="font-weight:600">${b.branchName}</td><td style="color:var(--text-secondary)">${b.officerCount}</td>
+          <td style="color:var(--accent)">${fmtUGX(b.revenue)}<div class="profit-bar"><div class="profit-bar-fill" style="width:${Math.round(b.revenue/maxBR*100)}%;background:var(--accent)"></div></div></td>
+          <td style="color:var(--accent-red)">${b.hasCostData?fmtUGX(b.totalCost):'—'}</td>
+          <td style="color:${nc};font-weight:700">${b.hasCostData?fmtUGX(b.netProfit):'—'}</td>
+          <td style="color:${profitCirColor(b.cir)};font-weight:700">${b.hasCostData?fmtPct(b.cir):'—'}</td>
+          <td style="color:var(--accent-blue)">${fmtPct(b.rop)}</td>
+          <td style="color:${rc}">${b.hasCostData?fmtUGX(b.riskAdjProfit):'—'}</td>
+          <td>${profitStatusBadge(b.status)}</td></tr>`;
+      }).join('');
+}
+function showProfitBreakdown(idx) {
+  if (!profitData?.officers?.[idx]) return;
+  const o = profitData.officers[idx];
+  if (!o.hasCostData) { showToast('No cost data for '+o.officerName+' — use ⚙ Enter Costs', 'info', 3500); return; }
+  const b = o.costBreakdown||{};
+  showToast(`${o.officerName}: Sal ${fmtUGX(b.salary||0)} · Trpt ${fmtUGX(b.transport||0)} · Air ${fmtUGX(b.airtime||0)} · Ins ${fmtUGX(b.insurance||0)} · NSSF ${fmtUGX(b.nssf||0)} · Comm ${fmtUGX(b.commission||0)} · OH ${fmtUGX(b.overhead||0)}`, 'info', 6000);
+}
+async function loadProfitability() {
+  try {
+    const bp = currentBranch&&currentBranch!=='all'?`&branch=${currentBranch}`:'';
+    const r  = await fetch(`${API_BASE}/api/nova/profitability?period=${profitPeriod}${bp}`);
+    if (!r.ok) throw new Error(`Profitability HTTP ${r.status}`);
+    const d = await r.json(); if (!d.success) throw new Error(d.error);
+    renderProfitData(d);
+  } catch(e) {
+    console.error('[profitability]',e.message);
+    document.getElementById('profitOfficerBody').innerHTML =
+      `<tr><td colspan="12" class="empty-state" style="color:var(--accent-red)">${e.message}</td></tr>`;
+  }
+}
+CHART_DEFINITIONS['Unit Profitability Matrix'] = {
+  what:'P&L matrix comparing interest + fee revenue actually collected per loan officer and branch against their prorated operating costs (salary, transport, airtime, insurance, NSSF, commission, fixed branch overhead).',
+  reading:'Green = profitable (CIR below target). Amber = marginal. Red = loss-making. White = no cost data entered. CIR = Total Cost ÷ Revenue × 100. RoP = Return on Portfolio. Risk-Adj Profit = Revenue × (1 − PAR30%) − Costs.',
+  insight:'An officer can generate high revenue but still be loss-making if their PAR is high. The Risk-Adjusted column gives Directors the most honest view. CIR above 90% means the institution is spending nearly as much as it earns on that officer.',
+  action:'Officers in red for 2+ consecutive months should trigger a performance review. Check if the issue is revenue (low collections, small portfolio) or cost (high salary relative to book size). Branch view reveals whether the issue is systemic or individual.'
+};
+/* ══ END PROFITABILITY MATRIX ══════════════════════════════════════════════ */
 
 loadAll();
 </script>
